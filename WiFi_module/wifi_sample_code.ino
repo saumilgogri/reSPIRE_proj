@@ -28,7 +28,7 @@ const char* ssid     = "1.21 jiggawatts";
 const char* password = "itburnswhenIPee";
 
 // REPLACE with your Domain name and URL path or IP address with path
-const char* serverName = "http://example.com/post-esp-data.php";
+const char* serverName = "https://respire.000webhostapp.com/post-esp-data.php";
 
 // Keep this API Key value to be compatible with the PHP code provided in the project page. 
 // If you change the apiKeyValue value, the PHP file /post-esp-data.php also needs to have the same key 
