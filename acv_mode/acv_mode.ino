@@ -42,7 +42,7 @@ int display_sensorvalue_gp_cmh2o;
 int state = HIGH;      // the current state of the output pin
 int reading;           // the current reading from the input pin
 int previous = LOW;    // the previous reading from the input pin
-long time = 0;         // the last time the output pin was toggled
+long t_time = 0;         // the last time the output pin was toggled
 long debounce = 200;   // the debounce time, increase if the output flickers
 
 
@@ -50,7 +50,7 @@ void setup()
 {
   servoright.attach(9);  // attaches the servo on pin 9 to the servo object
   Serial.begin(9600);
-  attachInterrupt(0, pin_ISR, CHANGE);
+//  attachInterrupt(0, pin_ISR, CHANGE);
 }
  
 void loop()
@@ -62,8 +62,8 @@ void loop()
   pressure_mask = (map(analogRead(pinguage_mask), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;    
   pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset)*10.1972/92;
   pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92; 
-  reading = digitalRead(inPin)
-  if (reading == HIGH && previous == LOW && millis() - time > debounce) {
+  reading = digitalRead(inPin);
+  if (reading == HIGH && previous == LOW && millis() - t_time > debounce) {
     valIE_ratio = analogRead(potpinIE_ratio);            // reads the value of the potentiometer (value between 0 and 1023)
     valIE_ratio = map(valIE_ratio, 0, 1023, 1.00, 4.00);     // scale it to use it with the servo (value between 0 and 180)
     valTidVol = analogRead(potpinTidVol);            // reads the value of the potentiometer (value between 0 and 1023)
@@ -113,15 +113,22 @@ void loop()
   }  
   delay(separation*1000);
   }
-  else if((reading == LOW && previous == HIGH && millis() - time > debounce) {
+  else if(reading == LOW && previous == HIGH && millis() - t_time > debounce) {
       valTidVol = analogRead(potpinTidVol);            // reads the value of the potentiometer (value between 0 and 1023)
       valTidVol = map(valTidVol, 0, 1023, 40.00, 90.00);     // scale it to use it with the servo (value between 0 and 180)
-      acv_mode(valTidVol,valBPM,valIE_ratio)
+      acv_mode(valTidVol,valBPM,valIE_ratio);
     }
 previous = reading;
+
 }
 
-void acv_mode(acv_volume,acv_bpm,acv_ieratio){
+void acv_mode(float acv_volume,float acv_bpm,float acv_ieratio){
+  float per_breath_time;
+  float per_inspiration_time;
+  float per_expiration_time;
+  float human_effort;
+  float acv_ie_ratio;
+  float separation;
   per_breath_time = 1/acv_bpm*60;
   per_inspiration_time = 1/(1+1/acv_ieratio)*per_breath_time;
   per_expiration_time = per_breath_time - per_inspiration_time;
@@ -157,7 +164,7 @@ void acv_mode(acv_volume,acv_bpm,acv_ieratio){
     }
   }
   // ====== Copmute respiration separation time based on pot inputs ==========
-  separation = 60/acv_bpm - (1+acv_ie_ratio);
+  separation = (60/acv_bpm - (1+acv_ie_ratio));
   if (separation < 0)
   {
     acv_ie_ratio = 60/acv_bpm - 1;
@@ -165,10 +172,10 @@ void acv_mode(acv_volume,acv_bpm,acv_ieratio){
   }
 
   // ========= Servo a-Clockwise motion =============
-  for(pos = 30; pos <= acv_vol+30; pos += 1) // goes from 0 degrees to 180 degrees
+  for(pos = 30; pos <= acv_volume+30; pos += 1) // goes from 0 degrees to 180 degrees
   {                                  // in steps of 1 degree
     servoright.write(pos);
-    delay(1000/acv_vol);                       
+    delay(1000/acv_volume);                       
 
     // ============ Update pressure values =========
     pressure_mask = (map(analogRead(pinguage_mask), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;    
@@ -182,10 +189,10 @@ void acv_mode(acv_volume,acv_bpm,acv_ieratio){
   delay(15);
   
   // ========= Servo Clockwise motion ============
-  for(pos = acv_vol+30; pos>=30; pos-=1)     // goes from 180 degrees to 0 degrees
+  for(pos = acv_volume+30; pos>=30; pos-=1)     // goes from 180 degrees to 0 degrees
   {                                
     servoright.write(pos);
-    delay(1000*acv_ie_ratio/acv_vol);                       
+    delay(1000*acv_ie_ratio/acv_volume);                       
     // ============ Update pressure values =========
     pressure_mask = (map(analogRead(pinguage_mask), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;    
     pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset)*10.1972/92; 
@@ -196,8 +203,7 @@ void acv_mode(acv_volume,acv_bpm,acv_ieratio){
     Serial.println(pressure_expiration);
   }  
   delay(separation*1000);
-  end_time = millis();
-  
+  //end_time = millis();
 }
-}
+
 
