@@ -131,6 +131,7 @@ void acv_mode(float acv_volume,float acv_bpm,float acv_ieratio){
   float human_effort;
   float acv_ie_ratio;
   float separation;
+  acv_ie_ratio = acv_ieratio;
   per_breath_time = 1/acv_bpm*60;
   per_inspiration_time = 1/(1+1/acv_ieratio)*per_breath_time;
   per_expiration_time = per_breath_time - per_inspiration_time;
