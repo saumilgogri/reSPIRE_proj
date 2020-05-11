@@ -137,29 +137,30 @@ void acv_mode(float acv_volume,float acv_bpm,float acv_ieratio){
   per_expiration_time = per_breath_time - per_inspiration_time;
   for(int i=0;i<5;i++){
   human_effort = analogRead(pinguage_mask);
+  check_value = (map(analogRead(human_effort), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;
   delay(5);
   }
-  human_effort = analogRead(pinguage_mask);
-  if( human_effort < 0){
-    if( human_effort < -100 && human_effort > -200){
+  //human_effort = analogRead(pinguage_mask);
+  if( check_value < 0){
+    if( check_value < -0.5 && check_value > -1){
     acv_volume = 0.8*acv_volume;
     per_inspiration_time = 0.8*per_inspiration_time;
     delay(per_inspiration_time);
     acv_ie_ratio = per_inspiration_time/per_expiration_time; 
     }
-    else if (human_effort < -200 && human_effort > -300){
+    else if (check_value < -1 && check_value  > -2){
     acv_volume = 0.6*acv_volume;
     per_inspiration_time = 0.6*per_inspiration_time;
     delay(per_inspiration_time);
     acv_ie_ratio = per_inspiration_time/per_expiration_time;
     }
-    else if (human_effort < -300 && human_effort > -400){
+    else if (check_value  < -2 && check_value > -3){
     acv_volume = 0.4*acv_volume;
     per_inspiration_time = 0.4*per_inspiration_time;
     delay(per_inspiration_time);
     acv_ie_ratio = per_inspiration_time/per_expiration_time;
     }
-    else if (human_effort < -400){
+    else if (check_value < -4){
     acv_volume = 0.2*acv_volume;
     per_inspiration_time = 0.2*per_inspiration_time;
     delay(per_inspiration_time);
