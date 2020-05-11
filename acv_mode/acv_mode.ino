@@ -63,7 +63,8 @@ void loop()
   pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset)*10.1972/92;
   pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92; 
   reading = digitalRead(inPin);
-  if (reading == HIGH && previous == LOW && millis() - t_time > debounce) {
+  if (reading == HIGH && previous == LOW && millis() - t_time > debounce) 
+  {
     valIE_ratio = analogRead(potpinIE_ratio);            // reads the value of the potentiometer (value between 0 and 1023)
     valIE_ratio = map(valIE_ratio, 0, 1023, 1.00, 4.00);     // scale it to use it with the servo (value between 0 and 180)
     valTidVol = analogRead(potpinTidVol);            // reads the value of the potentiometer (value between 0 and 1023)
@@ -92,8 +93,8 @@ void loop()
     pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92; 
     
     Serial.println(pressure_mask);
-    Serial.println(pressure_diff);
-    Serial.println(pressure_expiration);
+    //Serial.println(pressure_diff);
+    //Serial.println(pressure_expiration);
   }
   delay(15);
   
@@ -108,17 +109,18 @@ void loop()
     pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92; 
     
     Serial.println(pressure_mask);
-    Serial.println(pressure_diff);
-    Serial.println(pressure_expiration);
+    //Serial.println(pressure_diff);
+    //Serial.println(pressure_expiration);
   }  
   delay(separation*1000);
   }
-  else if(reading == LOW && previous == HIGH && millis() - t_time > debounce) {
+  else 
+  {
       valTidVol = analogRead(potpinTidVol);            // reads the value of the potentiometer (value between 0 and 1023)
       valTidVol = map(valTidVol, 0, 1023, 40.00, 90.00);     // scale it to use it with the servo (value between 0 and 180)
       acv_mode(valTidVol,valBPM,valIE_ratio);
-    }
-previous = reading;
+  }
+prevqqious = reading;
 
 }
 
@@ -183,8 +185,8 @@ void acv_mode(float acv_volume,float acv_bpm,float acv_ieratio){
     pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92; 
     
     Serial.println(pressure_mask);
-    Serial.println(pressure_diff);
-    Serial.println(pressure_expiration);
+    //Serial.println(pressure_diff);
+    //Serial.println(pressure_expiration);
   }
   delay(15);
   
@@ -199,11 +201,9 @@ void acv_mode(float acv_volume,float acv_bpm,float acv_ieratio){
     pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92; 
     
     Serial.println(pressure_mask);
-    Serial.println(pressure_diff);
-    Serial.println(pressure_expiration);
+    //Serial.println(pressure_diff);
+    //Serial.println(pressure_expiration);
   }  
   delay(separation*1000);
   //end_time = millis();
 }
-
-

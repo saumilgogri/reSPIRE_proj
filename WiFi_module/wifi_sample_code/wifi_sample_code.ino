@@ -24,8 +24,8 @@
 //#include <Adafruit_BME280.h>
 
 // Replace with your network credentials
-const char* ssid     = "1.21 jiggawatts";
-const char* password = "itburnswhenIPee";
+const char* ssid     = "1.21 Jiggawatts!";
+const char* password = "itburnswhenIP";
 
 // REPLACE with your Domain name and URL path or IP address with path
 const char* serverName = "https://respire.000webhostapp.com/post-esp-data.php";
