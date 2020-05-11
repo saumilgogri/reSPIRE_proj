@@ -126,10 +126,10 @@ void acv_mode(acv_volume,acv_bpm,acv_ieratio){
   per_inspiration_time = 1/(1+1/acv_ieratio)*per_breath_time;
   per_expiration_time = per_breath_time - per_inspiration_time;
   for(int i=0;i<5;i++){
-  human_effort = analogRead(guagePressurepin);
+  human_effort = analogRead(pinguage_mask);
   delay(5);
   }
-  human_effort = analogRead(guagePressurepin);
+  human_effort = analogRead(pinguage_mask);
   if( human_effort < 0){
     if( human_effort < -100 && human_effort > -200){
     acv_volume = 0.8*acv_volume;
