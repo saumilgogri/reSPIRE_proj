@@ -30,8 +30,8 @@ String message = "";
 
 
 // Replace with your network credentials
-const char* ssid     = "NETGEAR43";
-const char* password = "smilingnest196";  
+const char* ssid     = "1.21 Jiggawatts!";
+const char* password = "itburnswhenIP";  
 
 // REPLACE with your Domain name and URL path or IP address with path
 const char* serverName = "http://respire.000webhostapp.com/post-esp-data.php";

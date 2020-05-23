@@ -74,6 +74,7 @@ void loop() {
         parseData();
         newData = false;
     }
+  Serial.print(list_values[0]);
   send_data(list_values);
   
   }

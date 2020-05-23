@@ -1,20 +1,18 @@
 #include <Guino.h>
-
 #include <Servo.h>
- 
 Servo servoright;
 int pos = 0;    
 
 // ==== Analog Pins =====
 float potpinIE_ratio = 0;  
 int potpinTidVol = 1;  
-int potpinBPM = 5;
-int pinguage_mask = 4;
-int pinguage_expiration = 3;
-int pinguage_diff = 2;
+int potpinBPM = 2;
+int pinguage_mask = 5;
+int pinguage_expiration = 4;
+int pinguage_diff = 3;
 
 // ==== Analog Pins ====
-int inPin = 2;
+int inPin = 4;
 
 // ==== Sensor Offset =====
 const float guageSensorOffset = 41;
@@ -36,6 +34,8 @@ int display_BPM;
 int display_TidVol;
 int display_sensorvalue_cmh2o;
 int display_sensorvalue_gp_cmh2o;
+uint32_t endTime;
+
 
 // ======= Mode changing vars =========
 
@@ -75,7 +75,7 @@ void loop()
     separation = 60/BPM - (1+IE_ratio);
   }
 
-  if (mode == HIGH && previous == LOW && millis() - t_time > debounce) 
+/*   if (mode == HIGH && previous == LOW && millis() - t_time > debounce) 
   {
 
       // ========= Servo a-Clockwise motion =============
@@ -112,12 +112,16 @@ void loop()
       delay(separation*1000);
   }
   else 
-  {   while(digitalRead(inPin) == HIGH)
+  {  */
+    endTime = millis();  
+    while(digitalRead(inPin) == HIGH)
       {
+        pressure_diff = analogRead(pinguage_diff);   
+        
         acv_mode();  
       }
       
-  }
+//  }
 previous = mode;
 
 }
@@ -143,14 +147,16 @@ void acv_mode()
       BPM = map(analogRead(potpinBPM), 0, 1023, 8.00, 30.00);     
       separation = (60/BPM - (1+IE_ratio));
       if (separation < 0)
-
+      { 
+        IE_ratio = 60/BPM - 1;
+        separation = 60/BPM - (1+IE_ratio);
+      }
       // Fetch pressure sensor values
       pressure_mask = (map(analogRead(pinguage_mask), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;    
-      pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset)*10.1972/92;
+      pressure_diff = analogRead(pinguage_diff);       
       pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92; 
 
-      { IE_ratio = 60/BPM - 1;
-        separation = 60/BPM - (1+IE_ratio);}
+      
 
       // Initiate the cycle
       if(firstRun)
@@ -222,10 +228,14 @@ void inspiration(float TidVol)
 
     // ============ Update pressure values =========
     pressure_mask = (map(analogRead(pinguage_mask), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;    
-    pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset)*10.1972/92; 
+    pressure_diff = analogRead(pinguage_diff); 
     pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92; 
-    
-    Serial.println(pressure_mask);
+    if (millis() - endTime > (uint32_t)100)
+        {
+          Serial.println(pressure_mask);
+          endTime = millis();
+        }
+    //Serial.println(pressure_mask);
     //Serial.println(pressure_diff);
     //Serial.println(pressure_expiration);
   }
@@ -243,12 +253,37 @@ uint32_t expiration(float TidVol, float IE_ratio)
     delay(1000*IE_ratio/TidVol);                       
     // ============ Update pressure values =========
     pressure_mask = (map(analogRead(pinguage_mask), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;    
-    pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset)*10.1972/92; 
+    pressure_diff = analogRead(pinguage_diff);   
     pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92; 
-    
-    Serial.println(pressure_mask);
+    if (millis() - endTime > (uint32_t)100)
+        {
+          Serial.println(pressure_mask);
+          endTime = millis();
+        }
+    //Serial.println(pressure_mask);
     //Serial.println(pressure_diff);
     //Serial.println(pressure_expiration);
   }  
   return millis();
 }
+
+
+
+// =============================
+// Copmute volume and flow rates
+// =============================
+void computeFlows(float area_1, float area2)
+{
+  float pressureDiff;
+  float pressure_cmH2o;
+  float pressure_pa;
+  float rho = 1.225;
+  float massFlow;
+  float volFlow;
+  
+  pressure_cmH2o = (analogRead(pinguage_diff) - pressureDiffSensorOffset)*10.1972/92;
+  pressure_pa = pressure_cmH2o*98.0665;
+//  massFlow=1000*sqrt((abs(pressure_pa)*2*rho)/((1/(pow(area_2,2)))-(1/(pow(area_1,2))))); 
+  volFlow = massFlow/rho; 
+  
+} 
