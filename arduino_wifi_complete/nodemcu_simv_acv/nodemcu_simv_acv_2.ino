@@ -26,14 +26,12 @@ float pressure_diff = 0.00;
 float pressure_expiration = 0.00;
 
 //=======================================
-unsigned long time_1;
-bool test_2;
-String last_char = "}";
+String message = "";
 
 
 // Replace with your network credentials
-const char* ssid     = "1.21 Jiggawatts!";
-const char* password = "itburnswhenIP";  
+const char* ssid     = "NETGEAR43";
+const char* password = "smilingnest196";  
 
 // REPLACE with your Domain name and URL path or IP address with path
 const char* serverName = "http://respire.000webhostapp.com/post-esp-data.php";
@@ -61,35 +59,22 @@ void setup() {
 }
 
 void loop() {
-  String message = "";
-  //String test = "";
-  DynamicJsonDocument doc(1024);
-  doc["type"] = "request";
-  //serializeJson(doc, test);
-  //Serial.println(test);
-  serializeJson(doc,SUART);
-  // Reading the response
-  boolean messageReady = false;
-  time_1 = millis();
-  while(messageReady == false) { // blocking but that's ok
-    if(SUART.available()) {
-      message = SUART.readString();
-      Serial.println(message);
-      test_2 = message.endsWith(last_char);
-      Serial.println(test_2);
-      if (!(test_2)){
-        return;
-      }
-      messageReady = true;
-    }
-     if(millis() - time_1 > 3000){
-      return;
-    }
-  }
-  send_data(message);
-  delay(3000);
-  }
+  //doc_2["BPM"] = BPM;
+  //doc_2["IE_ratio"] = IE_ratio;
+  //doc_2["pressure_mask"] = pressure_mask;
+  //doc_2["pressure_expiration"] = pressure_expiration;
+  //doc_2["TidVol"] = TidVol;
+  //doc_2["pressure_diff"] = pressure_diff;
+
   
+  if(SUART.available()) {
+  message = SUART.readString();
+  Serial.println(message);
+  
+  send_data(message);
+  }
+  delay(3000);
+}
 
 //======================================
 

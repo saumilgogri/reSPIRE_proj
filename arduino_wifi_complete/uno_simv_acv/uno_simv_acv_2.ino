@@ -1,7 +1,7 @@
 #include <Guino.h>
 
 #include <Servo.h>
-#include<SoftwareSerial.h>
+#include <SoftwareSerial.h>
 #include <ArduinoJson.h>
 
 //====== Serial COnnection with NODEMCU =====
@@ -114,6 +114,14 @@ void acv_mode()
       pressure_mask = (map(analogRead(pinguage_mask), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;    
       pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset)*10.1972/92;
       pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;
+      DynamicJsonDocument doc(1024);
+      doc["BPM"] = BPM;
+      doc["IE_ratio"] = IE_ratio;
+      doc["pressure_mask"] = pressure_mask;
+      doc["pressure_expiration"] = pressure_expiration;
+      doc["TidVol"] = TidVol;
+      doc["pressure_diff"] = pressure_diff; 
+      serializeJson(doc,SUART);
       // Initiate the cycle
       if(firstRun)
       {
@@ -130,7 +138,8 @@ void acv_mode()
         delay(15);
         cycleEndTime = expiration(TidVol, IE_ratio);
       }
-      transmit(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
+
+
   }
   
 }
@@ -211,7 +220,14 @@ void simv_mode()
       pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset)*10.1972/92;
       pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92; 
     
-      
+      DynamicJsonDocument doc_2(1024);
+      doc_2["BPM"] = BPM;
+      doc_2["IE_ratio"] = IE_ratio;
+      doc_2["pressure_mask"] = pressure_mask;
+      doc_2["pressure_expiration"] = pressure_expiration;
+      doc_2["TidVol"] = TidVol;
+      doc_2["pressure_diff"] = pressure_diff; 
+      serializeJson(doc_2,SUART);
       // Initiate the cycle
       if(firstRun)
       {
@@ -226,7 +242,7 @@ void simv_mode()
         pressure_mask = average_pressure_mask();
         cycleEndTime = simv_logic(pressure_mask, TidVol, IE_ratio);
       }
-      transmit(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
+
   }
 }
 
@@ -289,39 +305,3 @@ uint32_t expiration(float TidVol, float IE_ratio)
   }  
   return millis();
 }
-
-// =====================
-// Transmit to DB
-// =====================
-
-void transmit(float BPM, float IE_ratio, float pressure_mask, float pressure_expiration, float TidVol, float pressure_diff){
-      String message = "";
-      boolean messageReady = false;
-      while(SUART.available()) {
-        message = SUART.readString();
-        Serial.println(message);
-        messageReady = true;
-        }
-      if(messageReady) {
-      // The only messages we'll parse will be formatted in JSON
-      DynamicJsonDocument doc(1024); // ArduinoJson version 6+
-      // Attempt to deserialize the message
-      DeserializationError error = deserializeJson(doc,message);
-      if(error) {
-        Serial.print(F("deserializeJson() failed: "));
-        Serial.println(error.c_str());
-        messageReady = false;
-        doc["type"] = "incorrect";
-      }
-      if(doc["type"] == "request") {
-        doc["type"] = "response";
-        doc["BPM"] = BPM;
-        doc["IE_ratio"] = IE_ratio;
-        doc["pressure_mask"] = pressure_mask;
-        doc["pressure_expiration"] = pressure_expiration;
-        doc["TidVol"] = TidVol;
-        doc["pressure_diff"] = pressure_diff; 
-        serializeJson(doc,SUART);
-      }
-      }
-      }
