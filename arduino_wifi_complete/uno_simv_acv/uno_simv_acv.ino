@@ -244,34 +244,6 @@ uint32_t expiration(float TidVol, float IE_ratio)
 // =============================
 // Pressure from Analog Function
 // =============================
-float pressureFromAnalog(int pin)
-{ float pressure;
-  float constVar;
-  float slopeVar;
-  float multiplier;
-  pressure = analogRead(pin);
-  
-  // Differential pressure sensor - output cmH2O
-  if (pin == pinDiff)
-  {
-    constVar = constPressureDiff;
-    slopeVar = slopePressureDiff;
-    multiplier = 1000;
-  }
-  // Guage pressure sensor - output Pascal
-  if (pin == pinMask)
-  {
-    constVar = constPressureMask;
-    slopeVar = slopePressureMask;
-    multiplier = 10.1972;
-  }
-  pressure = (pressure - constVar)*multiplier/slopeVar;
-  return pressure;
-}
-
-// =============================
-// Pressure from Analog Function
-// =============================
 void fetchPotValues()
 {
   // Fetch all potentiometer values
@@ -321,3 +293,35 @@ void transmit(float BPM, float IE_ratio, float maskPressure, float TidVol, float
       }
       }
       }
+
+// ================= LAYER 3 FUNCTIONS =============
+// =============================
+// Pressure from Analog Function
+// =============================
+float pressureFromAnalog(int pin)
+{ float pressure;
+  float constVar;
+  float slopeVar;
+  float multiplier;
+  pressure = analogRead(pin);
+  
+  // Differential pressure sensor - output cmH2O
+  if (pin == pinDiff)
+  {
+    constVar = constPressureDiff;
+    slopeVar = slopePressureDiff;
+    multiplier = 1000;
+  }
+  // Guage pressure sensor - output Pascal
+  if (pin == pinMask)
+  {
+    constVar = constPressureMask;
+    slopeVar = slopePressureMask;
+    multiplier = 10.1972;
+  }
+  pressure = (pressure - constVar)*multiplier/slopeVar;
+  return pressure;
+}
+
+
+
