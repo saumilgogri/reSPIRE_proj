@@ -39,6 +39,7 @@ float separation;
 float sensorvalue;
 float maskPressure;
 float diffPressure;
+str maskPressureJSON;
 
 // ======= Mode changing vars =========
 int state = HIGH;      
@@ -210,10 +211,11 @@ void inspiration(float TidVol)
     // ============ Update pressure values =========
     maskPressure = pressureFromAnalog(pinMask);    
     diffPressure = pressureFromAnalog(pinDiff);    
-    
+
     if (millis() - lastPrint >= uint32_t(100))
     {
       Serial.println(diffPressure);
+      // PAVAN YOU ARE UP - add diffPressure to diffPressureJSON with current timestamp
       lastPrint = millis();
     }
   }
@@ -322,6 +324,4 @@ float pressureFromAnalog(int pin)
   pressure = (pressure - constVar)*multiplier/slopeVar;
   return pressure;
 }
-
-
 
