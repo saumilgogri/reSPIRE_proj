@@ -10,14 +10,20 @@
 #include <ArduinoJson.h>
 #include <Wire.h>
 #include <FirebaseArduino.h>
-#include <TimeLib.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 
 #include<SoftwareSerial.h>
 SoftwareSerial SUART(4, 5); //SRX=Dpin-D2; STX-DPin-D1
 
 #define FIREBASE_HOST "respire-447da.firebaseio.com"
 #define FIREBASE_AUTH "vsloiSErdIEyQMV6ydzwaELOPVSP5dPqiOobAURm"
+#define NTP_OFFSET   60 * 60      // In seconds
+#define NTP_INTERVAL 60 * 1000    // In miliseconds
+#define NTP_ADDRESS  "europe.pool.ntp.org"
 
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, NTP_ADDRESS, NTP_OFFSET, NTP_INTERVAL);
 
 //=======================================
 unsigned long time_1;
@@ -53,20 +59,27 @@ void setup() {
   Serial.println(WiFi.localIP());
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
   Serial.println("Connected to Firebase");
-  
+  timeClient.begin();
 }
 
 void loop() {
+  timeClient.update();
   const int capacity = JSON_OBJECT_SIZE(1);
   StaticJsonBuffer<capacity> jb;
   JsonObject& doc = jb.createObject();
   doc["type"] = "request";
   String message = "";
+  String test = "";
   boolean messageReady = false;
+  doc.printTo(test);
+  Serial.println(test);
+  doc.printTo(Serial);
   doc.printTo(SUART);
+  SUART.println(test);
   while(messageReady == false) { // blocking but that's ok
     if(SUART.available()) {
       message = SUART.readString();
+      Serial.println("message was received");
       Serial.println(message);
       test_2 = message.endsWith(last_char);
       Serial.println(test_2);
@@ -85,18 +98,10 @@ void loop() {
 
 
 void send_data(String message) {
-const int capacity_2 = JSON_OBJECT_SIZE(7);
-StaticJsonBuffer<capacity_2> jb_2;
-JsonObject& doc_2 = jb_2.parseObject(message);
-  if(doc_2.success()) {
-    Serial.print(F("deserializeJson() failed: "));
-    return;
-  }
 if(WiFi.status()== WL_CONNECTED){
     t = now();
     String time_now = String(t);
-    String message = "";
-    doc_2.printTo(message);
+    Serial.println(time_now);
     Firebase.pushString(time_now, message);
     if(Firebase.success()){
     Serial.println("The push was successful");  
