@@ -2,10 +2,12 @@
 //          SETUP
 // ========================
 #include <Guino.h>
+//#include "Queue.h"
 
 #include <Servo.h>
 #include<SoftwareSerial.h>
 #include <ArduinoJson.h>
+
 
 //====== Serial Connection with NODEMCU =====
 SoftwareSerial SUART(2, 3); //SRX=Dpin-2; STX-DPin-3
@@ -20,15 +22,19 @@ int potpinTidVol = 1;
 int potpinBPM = 5;
 int pinMask = 4;
 int pinDiff = 3;
+int ledState = LOW;
 
-// ==== Analog Pins ====
+
+// ==== Digital Pins =====
+const int buzzerPin = 5;
+const int ledPin = 6;
 int inPin = 4;
 
 // ==== Sensor Offset =====
-const float constPressureMask = 41;
-const float slopePressureMask = 92;
-const float constPressureDiff = 548;
-const float slopePressureDiff = 204.8;
+float constPressureMask = 41;
+float slopePressureMask = 92;
+float constPressureDiff = 548;
+float slopePressureDiff = 204.8;
 
 // ===== Other vars ======
 float check_value;
@@ -39,7 +45,16 @@ float separation;
 float sensorvalue;
 float maskPressure;
 float diffPressure;
-str maskPressureJSON;
+float volFlow;
+float diffPressureArr[90];
+float maskPressureArr[90];
+float area_1 = 0.0006158;
+float area_2 = 0.000357;
+float rho = 1.225;
+//DynamicJsonDocument diffPressureJson(1024);
+//Queue<float> diffPressureQ;
+//Queue<float> maskPressureQ;
+
 
 // ======= Mode changing vars =========
 int state = HIGH;      
@@ -51,8 +66,13 @@ void setup()
   Serial.begin(9600);
   SUART.begin(9600); 
 //  attachInterrupt(0, pin_ISR, CHANGE);
+  pinMode(ledPin,OUTPUT);
+  pinMode(buzzerPin,OUTPUT);
 }
 
+//////////////////
+////// Loop //////
+//////////////////
 // ===========================================
 //              RUN RESPIRATOR
 // =========================================== 
@@ -75,12 +95,11 @@ void acv_mode()
 {
   uint32_t cycleEndTime;
   bool firstRun = true;
-
+  
   while(digitalRead(inPin) == HIGH)
   {
       // Fetch all potentiometer values
       fetchPotValues();
-      
       // Initiate first run
       if(firstRun)
       {
@@ -89,7 +108,6 @@ void acv_mode()
         cycleEndTime = expiration(TidVol, IE_ratio);
         firstRun = false;
       }
-
       // ========= Identify trigger and initiate the cycle =============
       if(millis() - cycleEndTime >= (uint32_t)separation || maskPressure < -1)
       {
@@ -98,6 +116,12 @@ void acv_mode()
         cycleEndTime = expiration(TidVol, IE_ratio);
       }
       transmit(BPM, IE_ratio, maskPressure, TidVol, diffPressure);
+      sanityCheckBuzzer();
+      //for (int i = 0; i < sizeof(diffPressureArr); i++)                        
+      //{
+      //  diffPressureArr[i] = float(0);
+      //  maskPressureArr[i] = float(0);
+      //}
   }
   
 }
@@ -125,7 +149,8 @@ void simv_mode()
         cycleEndTime = simv_logic(maskPressure, TidVol, IE_ratio);
         firstRun = false;
       }
-
+      
+      
       // ========= Identify trigger and initiate the cycle =============
       if(millis() - cycleEndTime >= (uint32_t)separation || average_maskPressure() < -1)
       {
@@ -133,6 +158,8 @@ void simv_mode()
         cycleEndTime = simv_logic(maskPressure, TidVol, IE_ratio);
       }
       transmit(BPM, IE_ratio, maskPressure, TidVol, diffPressure);
+      
+
   }
 }
 
@@ -191,7 +218,7 @@ float average_maskPressure()
     maskPressure = 0;
     for(int i=0;i<5;i++)
     {
-        maskPressure = maskPressure + pressureFromAnalog(pinMask);
+        maskPressure = maskPressure + pressureFromAnalog(pinMask, 1);
         delay(3);
     }
     return (maskPressure/5);
@@ -202,22 +229,23 @@ float average_maskPressure()
 // Inspiration Function
 // =======================
 void inspiration(float TidVol)
-{ int pos;
+{ int count = 0;
   for(pos = 30; pos <= TidVol+30; pos += 1) // goes from 0 degrees to 180 degrees
   {                                  // in steps of 1 degree
     servo.write(pos);
     delay(1000/TidVol);                       
 
     // ============ Update pressure values =========
-    maskPressure = pressureFromAnalog(pinMask);    
-    diffPressure = pressureFromAnalog(pinDiff);    
-
+    maskPressure = pressureFromAnalog(pinMask, count);
+    diffPressure = pressureFromAnalog(pinDiff, count);  
+    volFlow = computeVolFlow();  
+    Serial.println(volFlow);
     if (millis() - lastPrint >= uint32_t(100))
-    {
-      Serial.println(diffPressure);
-      // PAVAN YOU ARE UP - add diffPressure to diffPressureJSON with current timestamp
+    { 
+      //Serial.println(mean(diffPressure));
       lastPrint = millis();
     }
+    count++;
   }
 }
 
@@ -227,25 +255,29 @@ void inspiration(float TidVol)
 
 uint32_t expiration(float TidVol, float IE_ratio)
 {
-  for(pos = TidVol+30; pos>=30; pos-=1)     // goes from 180 degrees to 0 degrees
+  int count = 0;
+  for(int pos = TidVol+30; pos>=30; pos-=1)     // goes from 180 degrees to 0 degrees
   {                                
     servo.write(pos);
     delay(1000*IE_ratio/TidVol);                       
     // ============ Update pressure values =========
-    maskPressure = pressureFromAnalog(pinMask);    
-    diffPressure = pressureFromAnalog(pinDiff);   
+    maskPressure = pressureFromAnalog(pinMask, count);    
+    diffPressure = pressureFromAnalog(pinDiff, count);   
+    volFlow = computeVolFlow();  
+    Serial.println(volFlow);
     if (millis() - lastPrint >= uint32_t(100))
     {
-      Serial.println(diffPressure);
+      //Serial.println(mean(diffPressure));
       lastPrint = millis();
     }
+    count++;
   }  
   return millis();
 }
 
-// =============================
-// Pressure from Analog Function
-// =============================
+// ======================================================
+// Fetch Potentiometer values and adjust separation time
+// ======================================================
 void fetchPotValues()
 {
   // Fetch all potentiometer values
@@ -300,28 +332,83 @@ void transmit(float BPM, float IE_ratio, float maskPressure, float TidVol, float
 // =============================
 // Pressure from Analog Function
 // =============================
-float pressureFromAnalog(int pin)
+float pressureFromAnalog(int pin, int count)
 { float pressure;
-  float constVar;
-  float slopeVar;
-  float multiplier;
   pressure = analogRead(pin);
-  
   // Differential pressure sensor - output cmH2O
   if (pin == pinDiff)
   {
-    constVar = constPressureDiff;
-    slopeVar = slopePressureDiff;
-    multiplier = 1000;
+    pressure = (pressure - constPressureDiff)*1000/slopePressureDiff;  
+    diffPressureArr[count] = pressure;
   }
   // Guage pressure sensor - output Pascal
   if (pin == pinMask)
   {
-    constVar = constPressureMask;
-    slopeVar = slopePressureMask;
-    multiplier = 10.1972;
+    pressure = (pressure - constPressureMask)*10.1972/slopePressureMask;
+    maskPressureArr[count] = pressure;
   }
-  pressure = (pressure - constVar)*multiplier/slopeVar;
+
   return pressure;
 }
 
+
+// =============================
+// Alarm Sanity Check
+// =============================
+
+void sanityCheckBuzzer()
+{
+  float SDPressure;
+  SDPressure = calcSD(maskPressureArr);
+  //Serial.println(SDPressure);
+  if(SDPressure < 0.01) buzzAlarm(true);
+  if(SDPressure >= 0.01) buzzAlarm(true);
+}
+
+// ================= LAYER 4 FUNCTIONS =============
+
+// =============================
+// Calculate standard deviation
+// =============================
+float calcSD(float data[])
+{
+  float avg = 0.0, SD = 0.0;
+  int length = sizeof(data);
+
+  for (int i = 0; i < length; i++)
+  {
+    avg += data[i];
+  }
+  avg = avg/length;
+
+  for (int i = 0; i < length; i++)
+  {SD += pow(data[i] - avg, 2);}
+  return sqrt(SD/length);
+}
+
+// ================================================================
+// Buzz Alarm if there is a problem; stop alarm if problem resolved
+// ================================================================
+void buzzAlarm(bool turnOn)
+{
+  if (turnOn == true)
+  {
+    ledState = HIGH;
+    tone(buzzerPin,500);
+  }
+
+  if (turnOn == false)
+  {
+    ledState = LOW;
+    noTone(buzzerPin);
+  }
+  
+}
+
+// =======================
+// Copmute Vol Flow
+// =======================
+float computeVolFlow()
+{ 
+  return 1000*sqrt((abs(diffPressure)*2*rho)/((1/(pow(area_2,2)))-(1/(pow(area_1,2)))))/rho; 
+}
