@@ -14,7 +14,7 @@ int pos = 0;
 // ==== Analog Pins =====
 float potpinIE_ratio = 0;  
 int potpinTidVol = 1;  
-int potpinBPM = 5;
+int potpinBPM = 2;
 int pinguage_mask = 4;
 int pinguage_expiration = 3;
 int pinguage_diff = 2;
@@ -316,4 +316,3 @@ uint32_t expiration(float TidVol, float IE_ratio)
   }  
   return millis();
 }
-

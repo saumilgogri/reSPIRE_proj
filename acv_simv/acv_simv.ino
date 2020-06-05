@@ -1,27 +1,20 @@
 #include <Guino.h>
 
 #include <Servo.h>
-#include <SoftwareSerial.h>
-#include <ArduinoJson.h>
-
-//====== Serial COnnection with NODEMCU =====
-SoftwareSerial SUART(2, 3); //SRX=Dpin-2; STX-DPin-3
-
-Servo servoright;
-int pos = 0;   
-
  
+Servo servoright;
+int pos = 0;    
 
 // ==== Analog Pins =====
 float potpinIE_ratio = 0;  
 int potpinTidVol = 1;  
-int potpinBPM = 5;
+int potpinBPM = 2;
 int pinguage_mask = 4;
 int pinguage_expiration = 3;
-int pinguage_diff = 2;
+int pinguage_diff = 3;
 
 // ==== Analog Pins ====
-int inPin = 4;
+int inPin = 2;
 
 // ==== Sensor Offset =====
 const float guageSensorOffset = 41;
@@ -57,7 +50,6 @@ void setup()
 {
   servoright.attach(9);  // attaches the servo on pin 9 to the servo object
   Serial.begin(9600);
-  SUART.begin(9600); //enable SUART Port for communication with NODEMCU
 //  attachInterrupt(0, pin_ISR, CHANGE);
 }
  
@@ -114,14 +106,7 @@ void acv_mode()
       pressure_mask = (map(analogRead(pinguage_mask), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;    
       pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset)*10.1972/92;
       pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;
-      DynamicJsonDocument doc(1024);
-      doc["BPM"] = BPM;
-      doc["IE_ratio"] = IE_ratio;
-      doc["pressure_mask"] = pressure_mask;
-      doc["pressure_expiration"] = pressure_expiration;
-      doc["TidVol"] = TidVol;
-      doc["pressure_diff"] = pressure_diff; 
-      serializeJson(doc,SUART);
+
       // Initiate the cycle
       if(firstRun)
       {
@@ -213,21 +198,16 @@ void simv_mode()
       BPM = map(analogRead(potpinBPM), 0, 1023, 8.00, 30.00);     
       separation = (60/BPM - (1+IE_ratio));
       if (separation < 0)
-    { IE_ratio = 60/BPM - 1;
-        separation = 60/BPM - (1+IE_ratio);}
+      { IE_ratio = 60/BPM - 1;
+        separation = 60/BPM - (1+IE_ratio);
+        }
       // Fetch pressure sensor values
       pressure_mask = (map(analogRead(pinguage_mask), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;    
       pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset)*10.1972/92;
       pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92; 
-    
-      DynamicJsonDocument doc_2(1024);
-      doc_2["BPM"] = BPM;
-      doc_2["IE_ratio"] = IE_ratio;
-      doc_2["pressure_mask"] = pressure_mask;
-      doc_2["pressure_expiration"] = pressure_expiration;
-      doc_2["TidVol"] = TidVol;
-      doc_2["pressure_diff"] = pressure_diff; 
-      serializeJson(doc_2,SUART);
+
+      
+
       // Initiate the cycle
       if(firstRun)
       {
@@ -277,7 +257,7 @@ void inspiration(float TidVol)
     pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset)*10.1972/92; 
     pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92; 
     
-    Serial.println(pressure_mask);
+    Serial.println(pressure_diff);
     //Serial.println(pressure_diff);
     //Serial.println(pressure_expiration);
   }
@@ -299,9 +279,17 @@ uint32_t expiration(float TidVol, float IE_ratio)
     pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset)*10.1972/92; 
     pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92; 
     
-    Serial.println(pressure_mask);
+    Serial.println(pressure_diff);
     //Serial.println(pressure_diff);
     //Serial.println(pressure_expiration);
   }  
   return millis();
 }
+
+
+// =======================
+// Layer 0: Alarm Function
+// =======================
+
+void alarm();
+

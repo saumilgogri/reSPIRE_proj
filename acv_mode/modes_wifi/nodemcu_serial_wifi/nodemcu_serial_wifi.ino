@@ -7,7 +7,9 @@
   #include <ESP8266HTTPClient.h>
   #include <WiFiClient.h>
 #endif
-#include <ArduinoJson.h>
+
+
+
 #include <Wire.h>
 
 #include<SoftwareSerial.h>
@@ -24,9 +26,14 @@ float TidVol = 0.00;
 float pressure_mask = 0.00;
 float pressure_diff = 0.00;
 float pressure_expiration = 0.00;
+float list_values[5] ;
 
 //=======================================
-String message = "";
+const byte numChars = 32;
+char receivedChars[numChars];
+char tempChars[numChars];        // temporary array for use when parsing
+
+boolean newData = false;
 
 
 // Replace with your network credentials
@@ -44,8 +51,8 @@ String sensorName = "MPXDIFF";
 String sensorLocation = "San Diego";
 
 void setup() {
-  Serial.begin(9600); //enable Serial Monitor
-  SUART.begin(9600); //enable SUART Port
+  Serial.begin(115200); //enable Serial Monitor
+  SUART.begin(115200); //enable SUART Port
   WiFi.begin(ssid, password);
   Serial.println("Connecting");
   while(WiFi.status() != WL_CONNECTED) { 
@@ -59,34 +66,73 @@ void setup() {
 }
 
 void loop() {
-  //doc_2["BPM"] = BPM;
-  //doc_2["IE_ratio"] = IE_ratio;
-  //doc_2["pressure_mask"] = pressure_mask;
-  //doc_2["pressure_expiration"] = pressure_expiration;
-  //doc_2["TidVol"] = TidVol;
-  //doc_2["pressure_diff"] = pressure_diff;
-
+  recvWithStartEndMarkers();
+    if (newData == true) {
+        strcpy(tempChars, receivedChars);
+            // this temporary copy is necessary to protect the original data
+            //   because strtok() used in parseData() replaces the commas with \0
+        parseData();
+        newData = false;
+    }
+  Serial.print(list_values[0]);
+  send_data(list_values);
   
-  if(SUART.available()) {
-  message = SUART.readString();
-  Serial.println(message);
-  
-  send_data(message);
   }
-  delay(3000);
-}
 
 //======================================
 
+void recvWithStartEndMarkers() {
+    static boolean recvInProgress = false;
+    static byte ndx = 0;
+    char startMarker = '<';
+    char endMarker = '>';
+    char rc;
 
-void send_data(String message) {
-DynamicJsonDocument doc(1024);
-DeserializationError error = deserializeJson(doc,message);
-  if(error) {
-    Serial.print(F("deserializeJson() failed: "));
-    Serial.println(error.c_str());
-    return;
+    while (Serial.available() > 0 && newData == false) {
+        rc = Serial.read();
+
+        if (recvInProgress == true) {
+            if (rc != endMarker) {
+                receivedChars[ndx] = rc;
+                ndx++;
+                if (ndx >= numChars) {
+                    ndx = numChars - 1;
+                }
+            }
+            else {
+                receivedChars[ndx] = '\0'; // terminate the string
+                recvInProgress = false;
+                ndx = 0;
+                newData = true;
+            }
+        }
+
+        else if (rc == startMarker) {
+            recvInProgress = true;
+        }
+    }
+}
+
+//========================================
+
+void parseData() {      // split the data into its parts
+
+    char * strtokIndx; // this is used by strtok() as an index
+
+    for (int i=0;i<5;i++)
+  {
+    if(i=0){
+      strtokIndx = strtok(tempChars,",");
+    }
+    else
+    {
+      strtokIndx = strtok(NULL, ",");
+    }
+    list_values[i] = atof(strtokIndx);
   }
+}
+
+void send_data(float list_data[]) {
 if(WiFi.status()== WL_CONNECTED){
     HTTPClient http;
     
@@ -95,12 +141,13 @@ if(WiFi.status()== WL_CONNECTED){
     
     // Specify content-type header
     http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-    String BPM = doc["BPM"];
-    String IE_ratio = doc["IE_ratio"];
-    String TidVol = doc["TidVol"];
+    // Prepare your HTTP POST request data
+    //sample1 = sample1 + 0.646;
+    //sample2 = sample2 + 0.545;
+    //sample3 = sample3 + 0.666;
     String httpRequestData = "api_key=" + apiKeyValue + "&sensor=" + sensorName
-                          + "&location=" + sensorLocation + "&value1=" + BPM
-                          + "&value2=" + IE_ratio + "&value3=" + TidVol + "";
+                          + "&location=" + sensorLocation + "&value1=" + String(list_data[0])
+                          + "&value2=" + String(list_data[1]) + "&value3=" + String(list_data[2]) + "";
     Serial.print("httpRequestData: ");
     Serial.println(httpRequestData);
   

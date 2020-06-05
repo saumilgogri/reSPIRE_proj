@@ -32,8 +32,8 @@ String last_char = "}";
 
 
 // Replace with your network credentials
-const char* ssid     = "NETGEAR43";
-const char* password = "smilingnest196";  
+const char* ssid     = "1.21 Jiggawatts!";
+const char* password = "itburnswhenIP";  
 
 // REPLACE with your Domain name and URL path or IP address with path
 const char* serverName = "http://respire.000webhostapp.com/post-esp-data.php";
@@ -80,11 +80,10 @@ void loop() {
       if (!(test_2)){
         return;
       }
+      Serial.println("I am here");
       messageReady = true;
     }
-     if(millis() - time_1 > 3000){
-      return;
-    }
+
   }
   send_data(message);
   delay(3000);
@@ -95,14 +94,14 @@ void loop() {
 
 
 void send_data(String message) {
-DynamicJsonDocument doc(1024);
-DeserializationError error = deserializeJson(doc,message);
+  DynamicJsonDocument doc(1024);
+  DeserializationError error = deserializeJson(doc,message);
   if(error) {
     Serial.print(F("deserializeJson() failed: "));
     Serial.println(error.c_str());
     return;
   }
-if(WiFi.status()== WL_CONNECTED){
+  if(WiFi.status()== WL_CONNECTED){
     HTTPClient http;
     
     // Your Domain name with URL path or IP address with path

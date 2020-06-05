@@ -1,0 +1,5 @@
+{
+    "board": "arduino:avr:uno",
+    "sketch": "acv_simv/acv_simv.ino",
+    "port": "/dev/tty.usbserial-1420"
+}
