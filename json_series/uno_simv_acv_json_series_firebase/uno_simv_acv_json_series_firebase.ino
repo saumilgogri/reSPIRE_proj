@@ -1,7 +1,9 @@
+
 #include <Servo.h>
 #include<SoftwareSerial.h>
 #include <ArduinoJson.h>
-#include <Nextion.h>
+#include "Nextion.h"
+
 //====== Serial COnnection with NODEMCU =====
 SoftwareSerial SUART(2, 3); //SRX=Dpin-2; STX-DPin-3
 
@@ -17,49 +19,7 @@ int pinguage_expiration = 3;
 int pinguage_diff = 2;
 
 // ==== Analog Pins ====
-//int inPin = 4;
-
-// Declare your Nextion objects - Example (page id = 0, component id = 1, component name = "b0") 
-NexText t_mode = NexText(0, 9, "t_mode");
-NexButton b0 = NexButton(0, 2, "b0");
-NexButton b1 = NexButton(0, 3, "b1");
-NexButton b2 = NexButton(0, 4, "b2");
-NexText t3 = NexText(1, 5, "t3");
-NexText t4 = NexText(1, 6, "t4");
-NexText t5 = NexText(1, 7, "t5");
-NexText t_ie_ratio = NexText(0, 10, "t_ie_Ratio");
-NexText t_bpm = NexText(0, 11, "t_bpm");
-NexText t_tidvol = NexText(0, 12, "t_tidvol");
-
-String set_mode = "";
-
-NexTouch *nex_listen_list[] = {
-  &b0,
-  &b1,
-  &b2,
-  NULL
-};
-
-
-void b0PopCallback(void *ptr) {
-  t_mode.setText("MODE : ACV");
-  acv_mode();
-  set_mode = "acv";
-}
-
-void b1PopCallback(void *ptr) {
-  t_mode.setText("MODE : SIMV");
-  simv_mode();
-  set_mode = "simv"; 
-}
-
-void b2PopCallback(void *ptr) {
-  t_mode.setText("MODE : None");
-  //no_mode();
-  set_mode = "None"; 
-}
-
-
+int inPin = 4;
 
 // ==== Sensor Offset =====
 const float guageSensorOffset = 41;
@@ -82,42 +42,65 @@ int display_TidVol;
 int display_sensorvalue_cmh2o;
 int display_sensorvalue_gp_cmh2o;
 
+// ======= Mode changing vars =========
+
+int state = HIGH;      // the current state of the output pin
+int mode;           // the current reading from the input pin
+int previous = LOW;    // the previous reading from the input pin
+long t_time = 0;         // the last time the output pin was toggled
+long debounce = 200;   // the debounce time, increase if the output flickers
+
+
+// ======= JSON For storing data =========
+String message = "";
+boolean messageReady = false;
+int obj_number = 1;
+const int send_doc_capacity = JSON_ARRAY_SIZE(10) + 2*JSON_OBJECT_SIZE(7);
+StaticJsonBuffer<send_doc_capacity> send_doc_json_buffer;
+JsonArray& arr = send_doc_json_buffer.createArray();
 
 void setup()
 {
   servoright.attach(9);  // attaches the servo on pin 9 to the servo object
   Serial.begin(9600);
   SUART.begin(9600); //enable SUART Port for communication with NODEMCU
-  nexInit();
-
-  // Register the pop event callback function of the components
-  b0.attachPop(b0PopCallback, &b0);
-  b1.attachPop(b1PopCallback, &b1);
-  b2.attachPop(b2PopCallback, &b2);
-  
+//  attachInterrupt(0, pin_ISR, CHANGE);
 }
-
-
-
-void loop()
  
-{ nexLoop(nex_listen_list);
-  if (set_mode == "simv")
+void loop()
+{
+  if (digitalRead(inPin) == LOW)
   {
-      while(set_mode=="simv")
+      while(digitalRead(inPin)==LOW)
       {
         simv_mode();
+        while(SUART.available()) {
+        message = SUART.readString();
+        Serial.println(message);
+        messageReady = true;
+        }
+      if(messageReady) {
+        transmit(message);
       }
   }
+  }
   else 
-  {   while(set_mode == "acv")
+  {   while(digitalRead(inPin) == HIGH)
       {
-        acv_mode();  
+        acv_mode();
+        while(SUART.available()) {
+        message = SUART.readString();
+        Serial.println(message);
+        messageReady = true;
+        }
+      if(messageReady) {
+        transmit(message);
+      }  
       }
       
   }
-}
 
+}
 
 // =======================
 // ACV MODE Function
@@ -136,7 +119,7 @@ void acv_mode()
   uint32_t cycleEndTime;
   bool firstRun = true;
 
-  while(set_mode == "acv")
+  while(digitalRead(inPin) == HIGH)
   {
       // Fetch all potentiometer values
       IE_ratio = map(analogRead(potpinIE_ratio), 0, 1023, 1.00, 4.00);    
@@ -168,8 +151,7 @@ void acv_mode()
         delay(15);
         cycleEndTime = expiration(TidVol, IE_ratio);
       }
-      transmit(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
-      print_to_screen(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
+      make_json(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
   }
   
 }
@@ -227,7 +209,7 @@ void simv_mode()
   uint32_t cycleEndTime;
   bool firstRun = true;
 
-  while(set_mode == "simv")
+  while(digitalRead(inPin) == LOW)
   {
       // Fetch all potentiometer values
       IE_ratio = map(analogRead(potpinIE_ratio), 0, 1023, 1.00, 4.00);    
@@ -240,7 +222,9 @@ void simv_mode()
       // Fetch pressure sensor values
       pressure_mask = (map(analogRead(pinguage_mask), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;    
       pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset)*10.1972/92;
-      pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;
+      pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92; 
+    
+      
       // Initiate the cycle
       if(firstRun)
       {
@@ -255,8 +239,7 @@ void simv_mode()
         pressure_mask = average_pressure_mask();
         cycleEndTime = simv_logic(pressure_mask, TidVol, IE_ratio);
       }
-      transmit(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
-      print_to_screen(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
+      make_json(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
   }
 }
 
@@ -324,17 +307,9 @@ uint32_t expiration(float TidVol, float IE_ratio)
 // Transmit to DB
 // =====================
 
-void transmit(float BPM, float IE_ratio, float pressure_mask, float pressure_expiration, float TidVol, float pressure_diff){
-      String message = "";
-      boolean messageReady = false;
-      while(SUART.available()) {
-        message = SUART.readString();
-        Serial.println(message);
-        messageReady = true;
-        }
-      if(messageReady) {
+void transmit(String message){
       // The only messages we'll parse will be formatted in JSON
-      const int capacity = JSON_OBJECT_SIZE(7);
+      const int capacity = JSON_OBJECT_SIZE(2);
       StaticJsonBuffer<capacity> jb;
       JsonObject& doc = jb.parseObject(message);
       //DynamicJsonDocument doc(1024); // ArduinoJson version 6+
@@ -344,40 +319,34 @@ void transmit(float BPM, float IE_ratio, float pressure_mask, float pressure_exp
         messageReady = false;
         doc["type"] = "incorrect";
       }
-      if(doc["type"] == "request") {
-        doc["type"] = "response";
-        doc["BPM"] = BPM;
-        doc["IE_ratio"] = IE_ratio;
-        doc["pressure_mask"] = pressure_mask;
-        doc["pressure_expiration"] = pressure_expiration;
-        doc["TidVol"] = TidVol;
-        doc["pressure_diff"] = pressure_diff; 
-        doc.printTo(SUART);
-      }
+      if(doc["type"] == "request") { 
+        arr.printTo(SUART);
+        send_doc_json_buffer.clear();
       }
       }
 
 
+
 // =====================
-// Print to Screen
+// Make the JSON
 // =====================
-void print_to_screen(float BPM, float IE_ratio, float pressure_mask, float pressure_expiration, float TidVol, float pressure_diff){
-  static char ps_diff[6];
-  dtostrf(pressure_diff, 6, 2, ps_diff);
-  static char ps_exp[6];
-  dtostrf(pressure_expiration, 6, 2, ps_exp);
-  static char ps_mask[6];
-  dtostrf(pressure_expiration, 6, 2, ps_exp);
-  t3.setText(ps_diff);
-  t4.setText(ps_exp);
-  t5.setText(ps_mask);
-  static char ie_ratio[6];
-  dtostrf(IE_ratio, 6, 2, ie_ratio);
-  t_ie_ratio.setText(ie_ratio);
-  static char bpm[6];
-  dtostrf(BPM, 6, 2, bpm);
-  t_bpm.setText(bpm);
-  static char tidvol[6];
-  dtostrf(TidVol, 6, 2, tidvol);
-  t_tidvol.setText(tidvol);
+
+void make_json(float BPM, float IE_ratio, float pressure_mask, float pressure_expiration, float TidVol, float pressure_diff){
+  JsonObject& obj = send_doc_json_buffer.createObject();
+  obj["type"] = "response";
+  obj["BPM"] = BPM;
+  obj["IE_ratio"] = IE_ratio;
+  obj["pressure_mask"] = pressure_mask;
+  obj["pressure_expiration"] = pressure_expiration;
+  obj["TidVol"] = TidVol;
+  obj["pressure_diff"] = pressure_diff;
+  arr.add(obj);
+  obj.remove("type");
+  obj.remove("TidVOl");
+  obj.remove("pressure_expiration");
+  obj.remove("pressure_mask");
+  obj.remove("IE_ratio");
+  obj.remove("BPM");
+  
 }
+
