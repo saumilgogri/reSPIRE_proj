@@ -2,6 +2,8 @@
 #include<SoftwareSerial.h>
 #include <ArduinoJson.h>
 #include <Nextion.h>
+#include "NexButton.h"
+
 //====== Serial COnnection with NODEMCU =====
 SoftwareSerial SUART(2, 3); //SRX=Dpin-2; STX-DPin-3
 
@@ -30,33 +32,30 @@ NexText t5 = NexText(1, 7, "t5");
 NexText t_ie_ratio = NexText(0, 10, "t_ie_Ratio");
 NexText t_bpm = NexText(0, 11, "t_bpm");
 NexText t_tidvol = NexText(0, 12, "t_tidvol");
-
 String set_mode = "";
 
-NexTouch *nex_listen_list[] = {
-  &b0,
-  &b1,
-  &b2,
-  NULL
-};
-
+NexTouch *nex_listen_list[] = {&b0,&b1,&b2,NULL};
 
 void b0PopCallback(void *ptr) {
   t_mode.setText("MODE : ACV");
-  acv_mode();
   set_mode = "acv";
+  Serial.println(set_mode);
+  //acv_mode();
+  
 }
 
 void b1PopCallback(void *ptr) {
   t_mode.setText("MODE : SIMV");
-  simv_mode();
+  //simv_mode();
   set_mode = "simv"; 
+  
 }
 
 void b2PopCallback(void *ptr) {
   t_mode.setText("MODE : None");
   //no_mode();
   set_mode = "None"; 
+  Serial.println(set_mode);
 }
 
 
@@ -102,7 +101,8 @@ void setup()
 void loop()
  
 { nexLoop(nex_listen_list);
-  if (set_mode == "simv")
+  
+/*   if (set_mode == "simv")
   {
       while(set_mode=="simv")
       {
@@ -115,7 +115,7 @@ void loop()
         acv_mode();  
       }
       
-  }
+  } */
 }
 
 
@@ -168,7 +168,6 @@ void acv_mode()
         delay(15);
         cycleEndTime = expiration(TidVol, IE_ratio);
       }
-      transmit(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
       print_to_screen(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
   }
   
@@ -255,7 +254,6 @@ void simv_mode()
         pressure_mask = average_pressure_mask();
         cycleEndTime = simv_logic(pressure_mask, TidVol, IE_ratio);
       }
-      transmit(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
       print_to_screen(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
   }
 }
@@ -324,38 +322,7 @@ uint32_t expiration(float TidVol, float IE_ratio)
 // Transmit to DB
 // =====================
 
-void transmit(float BPM, float IE_ratio, float pressure_mask, float pressure_expiration, float TidVol, float pressure_diff){
-      String message = "";
-      boolean messageReady = false;
-      while(SUART.available()) {
-        message = SUART.readString();
-        Serial.println(message);
-        messageReady = true;
-        }
-      if(messageReady) {
-      // The only messages we'll parse will be formatted in JSON
-      const int capacity = JSON_OBJECT_SIZE(7);
-      StaticJsonBuffer<capacity> jb;
-      JsonObject& doc = jb.parseObject(message);
-      //DynamicJsonDocument doc(1024); // ArduinoJson version 6+
-      // Attempt to deserialize the message
-      if(!(doc.success())){
-        Serial.println("Doc conversion failed");
-        messageReady = false;
-        doc["type"] = "incorrect";
-      }
-      if(doc["type"] == "request") {
-        doc["type"] = "response";
-        doc["BPM"] = BPM;
-        doc["IE_ratio"] = IE_ratio;
-        doc["pressure_mask"] = pressure_mask;
-        doc["pressure_expiration"] = pressure_expiration;
-        doc["TidVol"] = TidVol;
-        doc["pressure_diff"] = pressure_diff; 
-        doc.printTo(SUART);
-      }
-      }
-      }
+
 
 
 // =====================
