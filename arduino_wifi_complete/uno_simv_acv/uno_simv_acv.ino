@@ -74,7 +74,7 @@ NexText t5 = NexText(1, 7, "t5");
 NexText t_ie_ratio = NexText(0, 10, "t_ie_Ratio");
 NexText t_bpm = NexText(0, 11, "t_bpm");
 NexText t_tidvol = NexText(0, 12, "t_tidvol");
-String set_mode = acvLabel;
+String set_mode = "acv";
 NexTouch *nex_listen_list[] = {&b0,&b1,&b2,NULL};
 
 
@@ -103,10 +103,10 @@ void setup()
 // =========================================== 
 void loop()
 {
-  //nexLoop(nex_listen_list);
+  acv_mode();
   //while(set_mode == simvLabel) simv_mode();
-  get b0.val;
-  while(set_mode == acvLabel) acv_mode();
+//  get b0.val;
+  //while(set_mode == acvLabel) acv_mode();
 
 }
 // ***************** END RUN RESPIRATOR  *******************
@@ -119,11 +119,13 @@ void acv_mode()
 {
   uint32_t cycleEndTime;
   bool firstRun = true;
-  
-  while(set_mode == acvLabel)
-  {
-      // Fetch all potentiometer values
+  //nexLoop(nex_listen_list);
+
+  while(true)
+  {   Serial.println(set_mode);
+      // Fetch all potentiometer valuess
       fetchPotValues();
+      nexLoop(nex_listen_list);
       // Initiate first run
       if(firstRun)
       {
@@ -140,7 +142,7 @@ void acv_mode()
         cycleEndTime = expiration(TidVol, IE_ratio);
       }
       sanityCheckBuzzer();
-      nexLoop(nex_listen_list); 
+       
       // ============ Update pressure values =========
       maskPressure = pressureFromAnalog(pinMask,1000);
       diffPressure = pressureFromAnalog(pinDiff,1000); 
@@ -403,7 +405,7 @@ void computePrintVolFlow()
     }
   if(flow > 0.4)totVolume = totVolume + flow*(millis() - timeNow);
   timeNow = millis();
-  Serial.println(totVolume);
+  //Serial.println(totVolume);
 }
 // =======================
 // Nextion Screen Functions
@@ -413,7 +415,7 @@ void b0PopCallback(void *ptr) {
   set_mode = "acv"; 
   //String message = myNextion.listen();
   //Serial.println(message)
-  while(set_mode == acvLabel){acv_mode();}
+  //while(set_mode == acvLabel){acv_mode();}
 }
 
 void b1PopCallback(void *ptr) {
