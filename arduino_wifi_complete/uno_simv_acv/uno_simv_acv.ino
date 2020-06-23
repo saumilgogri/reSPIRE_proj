@@ -7,7 +7,8 @@
 #include <Servo.h>
 #include<SoftwareSerial.h>
 #include <ArduinoJson.h>
-
+#include <Nextion.h>
+#include "NexButton.h"
 
 //====== Serial Connection with NODEMCU =====
 SoftwareSerial SUART(2, 3); //SRX=Dpin-2; STX-DPin-3
@@ -15,6 +16,9 @@ SoftwareSerial SUART(2, 3); //SRX=Dpin-2; STX-DPin-3
 // setup servo
 Servo servo;
 int pos = 0;   
+SoftwareSerial nextion(1, 2);// Nextion TX to pin 2 and RX to pin 3 of Arduino
+
+//Nextion myNextion(nextion, 9600); //create a Nextion object named myNextion using the nextion serial port @ 9600bps
 
 // ==== Analog Pins =====
 int potpinIE_ratio = 0;  
@@ -28,7 +32,6 @@ int ledState = LOW;
 // ==== Digital Pins =====
 const int buzzerPin = 5;
 const int ledPin = 6;
-int inPin = 4;
 
 // ==== Sensor Offset =====
 float constPressureMask = 41;
@@ -48,17 +51,32 @@ float diffPressure;
 float volFlow;
 float diffPressureArr[90];
 float maskPressureArr[90];
-float area_1 = 0.0006158;
-float area_2 = 0.000357;
+float area_1 = 0.0002835287370;
+float area_2 = 0.00007853981634;
 float rho = 1.225;
-//DynamicJsonDocument diffPressureJson(1024);
-//Queue<float> diffPressureQ;
-//Queue<float> maskPressureQ;
-
+float totVolume;
+float timeNow;
+String acvLabel = "acv";
+String simvLabel = "simv";
 
 // ======= Mode changing vars =========
 int state = HIGH;      
 uint32_t lastPrint = millis();
+
+// Declare your Nextion objects - Example (page id = 0, component id = 1, component name = "b0") 
+NexText t_mode = NexText(0, 9, "t_mode");
+NexButton b0 = NexButton(0, 2, "b0");
+NexButton b1 = NexButton(0, 3, "b1");
+NexButton b2 = NexButton(0, 4, "b2");
+NexText t3 = NexText(1, 5, "t3");
+NexText t4 = NexText(1, 6, "t4");
+NexText t5 = NexText(1, 7, "t5");
+NexText t_ie_ratio = NexText(0, 10, "t_ie_Ratio");
+NexText t_bpm = NexText(0, 11, "t_bpm");
+NexText t_tidvol = NexText(0, 12, "t_tidvol");
+String set_mode = "acv";
+NexTouch *nex_listen_list[] = {&b0,&b1,&b2,NULL};
+
 
 void setup()
 {
@@ -68,6 +86,13 @@ void setup()
 //  attachInterrupt(0, pin_ISR, CHANGE);
   pinMode(ledPin,OUTPUT);
   pinMode(buzzerPin,OUTPUT);
+
+  // Register the pop event callback function of the components
+  nexInit();
+  //myNextion.init();
+  b0.attachPop(b0PopCallback, &b0);
+  b1.attachPop(b1PopCallback, &b1);
+  b2.attachPop(b2PopCallback, &b2);
 }
 
 //////////////////
@@ -78,11 +103,10 @@ void setup()
 // =========================================== 
 void loop()
 {
-  if (digitalRead(inPin) == LOW)
-  {while(digitalRead(inPin)==LOW) simv_mode();}
-  
-  else 
-  {while(digitalRead(inPin) == HIGH) acv_mode();}
+  acv_mode();
+  //while(set_mode == simvLabel) simv_mode();
+//  get b0.val;
+  //while(set_mode == acvLabel) acv_mode();
 
 }
 // ***************** END RUN RESPIRATOR  *******************
@@ -95,11 +119,13 @@ void acv_mode()
 {
   uint32_t cycleEndTime;
   bool firstRun = true;
-  
-  while(digitalRead(inPin) == HIGH)
-  {
-      // Fetch all potentiometer values
+  //nexLoop(nex_listen_list);
+
+  while(true)
+  {   Serial.println(set_mode);
+      // Fetch all potentiometer valuess
       fetchPotValues();
+      nexLoop(nex_listen_list);
       // Initiate first run
       if(firstRun)
       {
@@ -115,15 +141,14 @@ void acv_mode()
         delay(15);
         cycleEndTime = expiration(TidVol, IE_ratio);
       }
-      transmit(BPM, IE_ratio, maskPressure, TidVol, diffPressure);
       sanityCheckBuzzer();
-      //for (int i = 0; i < sizeof(diffPressureArr); i++)                        
-      //{
-      //  diffPressureArr[i] = float(0);
-      //  maskPressureArr[i] = float(0);
-      //}
+       
+      // ============ Update pressure values =========
+      maskPressure = pressureFromAnalog(pinMask,1000);
+      diffPressure = pressureFromAnalog(pinDiff,1000); 
+      //computePrintVolFlow();
   }
-  
+  return;
 }
 
 
@@ -137,7 +162,7 @@ void simv_mode()
   uint32_t cycleEndTime;
   bool firstRun = true;
 
-  while(digitalRead(inPin) == LOW)
+  while(set_mode = simvLabel)
   {
       // Fetch all potentiometer values
       fetchPotValues();
@@ -149,18 +174,14 @@ void simv_mode()
         cycleEndTime = simv_logic(maskPressure, TidVol, IE_ratio);
         firstRun = false;
       }
-      
-      
       // ========= Identify trigger and initiate the cycle =============
       if(millis() - cycleEndTime >= (uint32_t)separation || average_maskPressure() < -1)
       {
         maskPressure = average_maskPressure();
         cycleEndTime = simv_logic(maskPressure, TidVol, IE_ratio);
       }
-      transmit(BPM, IE_ratio, maskPressure, TidVol, diffPressure);
-      
-
   }
+  return;
 }
 
 // ============ LAYER 2 FUNCTIONS ================
@@ -230,6 +251,8 @@ float average_maskPressure()
 // =======================
 void inspiration(float TidVol)
 { int count = 0;
+  totVolume = 0;
+  timeNow = millis();
   for(pos = 30; pos <= TidVol+30; pos += 1) // goes from 0 degrees to 180 degrees
   {                                  // in steps of 1 degree
     servo.write(pos);
@@ -238,13 +261,8 @@ void inspiration(float TidVol)
     // ============ Update pressure values =========
     maskPressure = pressureFromAnalog(pinMask, count);
     diffPressure = pressureFromAnalog(pinDiff, count);  
-    volFlow = computeVolFlow();  
-    Serial.println(volFlow);
-    if (millis() - lastPrint >= uint32_t(100))
-    { 
-      //Serial.println(mean(diffPressure));
-      lastPrint = millis();
-    }
+    computePrintVolFlow();  
+    nexLoop(nex_listen_list); 
     count++;
   }
 }
@@ -256,6 +274,8 @@ void inspiration(float TidVol)
 uint32_t expiration(float TidVol, float IE_ratio)
 {
   int count = 0;
+  totVolume = 0;
+  timeNow = millis();
   for(int pos = TidVol+30; pos>=30; pos-=1)     // goes from 180 degrees to 0 degrees
   {                                
     servo.write(pos);
@@ -263,13 +283,8 @@ uint32_t expiration(float TidVol, float IE_ratio)
     // ============ Update pressure values =========
     maskPressure = pressureFromAnalog(pinMask, count);    
     diffPressure = pressureFromAnalog(pinDiff, count);   
-    volFlow = computeVolFlow();  
-    Serial.println(volFlow);
-    if (millis() - lastPrint >= uint32_t(100))
-    {
-      //Serial.println(mean(diffPressure));
-      lastPrint = millis();
-    }
+    computePrintVolFlow();
+    nexLoop(nex_listen_list); 
     count++;
   }  
   return millis();
@@ -297,36 +312,7 @@ void fetchPotValues()
 // Transmit to DB
 // =====================
 
-void transmit(float BPM, float IE_ratio, float maskPressure, float TidVol, float diffPressure){
-      String message = "";
-      boolean messageReady = false;
-      while(SUART.available()) {
-        message = SUART.readString();
-        Serial.println(message);
-        messageReady = true;
-        }
-      if(messageReady) {
-      // The only messages we'll parse will be formatted in JSON
-      DynamicJsonDocument doc(1024); // ArduinoJson version 6+
-      // Attempt to deserialize the message
-      DeserializationError error = deserializeJson(doc,message);
-      if(error) {
-        Serial.print(F("deserializeJson() failed: "));
-        Serial.println(error.c_str());
-        messageReady = false;
-        doc["type"] = "incorrect";
-      }
-      if(doc["type"] == "request") {
-        doc["type"] = "response";
-        doc["BPM"] = BPM;
-        doc["IE_ratio"] = IE_ratio;
-        doc["maskPressure"] = maskPressure;
-        doc["TidVol"] = TidVol;
-        doc["diffPressure"] = diffPressure; 
-        serializeJson(doc,SUART);
-      }
-      }
-      }
+
 
 // ================= LAYER 3 FUNCTIONS =============
 // =============================
@@ -339,13 +325,13 @@ float pressureFromAnalog(int pin, int count)
   if (pin == pinDiff)
   {
     pressure = (pressure - constPressureDiff)*1000/slopePressureDiff;  
-    diffPressureArr[count] = pressure;
+    if (count != 1000) {diffPressureArr[count] = pressure;}
   }
   // Guage pressure sensor - output Pascal
   if (pin == pinMask)
   {
-    pressure = (pressure - constPressureMask)*10.1972/slopePressureMask;
-    maskPressureArr[count] = pressure;
+    pressure = pressure = (pressure - constPressureMask)*10.1972/slopePressureMask;;
+    if (count != 1000) {maskPressureArr[count] = pressure;}
   }
 
   return pressure;
@@ -408,7 +394,37 @@ void buzzAlarm(bool turnOn)
 // =======================
 // Copmute Vol Flow
 // =======================
-float computeVolFlow()
+void computePrintVolFlow()
 { 
-  return 1000*sqrt((abs(diffPressure)*2*rho)/((1/(pow(area_2,2)))-(1/(pow(area_1,2)))))/rho; 
+  float flow;
+  flow =  1000*sqrt((abs(diffPressure)*2*rho)/((1/(pow(area_2,2)))-(1/(pow(area_1,2)))))/rho; 
+  if (millis() - lastPrint >= uint32_t(100))
+    { 
+      //Serial.println(flow);
+      lastPrint = millis();
+    }
+  if(flow > 0.4)totVolume = totVolume + flow*(millis() - timeNow);
+  timeNow = millis();
+  //Serial.println(totVolume);
+}
+// =======================
+// Nextion Screen Functions
+// =======================
+void b0PopCallback(void *ptr) {
+  t_mode.setText("MODE : ACV");
+  set_mode = "acv"; 
+  //String message = myNextion.listen();
+  //Serial.println(message)
+  //while(set_mode == acvLabel){acv_mode();}
+}
+
+void b1PopCallback(void *ptr) {
+  t_mode.setText("MODE : SIMV");
+  set_mode = "simv"; 
+  
+}
+
+void b2PopCallback(void *ptr) {
+  t_mode.setText("MODE : None");
+  set_mode = "None"; 
 }
