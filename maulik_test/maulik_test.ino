@@ -19,7 +19,7 @@ void loop() {
       //Serial.println(pressure_diff);
       //Serial.println(pressure_expiration);
     }
-
+  delay(3000);
    for(pos = 90; pos >= 0; pos -= 1) // goes from 0 degrees to 180 degrees
     {                                  // in steps of 1 degree
       servoright.write(pos);
@@ -29,4 +29,5 @@ void loop() {
       //Serial.println(pressure_diff);
       //Serial.println(pressure_expiration);
     }
+    delay(3000);
 }
