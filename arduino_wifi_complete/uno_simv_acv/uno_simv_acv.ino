@@ -12,18 +12,17 @@
 
 //====== Serial Connection with NODEMCU =====
 SoftwareSerial SUART(2, 3); //SRX=Dpin-2; STX-DPin-3
-
+SoftwareSerial nextion(0,1);
 // setup servo
 Servo servo;
 int pos = 0;   
-SoftwareSerial nextion(1, 2);// Nextion TX to pin 2 and RX to pin 3 of Arduino
-
+//Nextion myNextion(nextion,9600);
 //Nextion myNextion(nextion, 9600); //create a Nextion object named myNextion using the nextion serial port @ 9600bps
 
 // ==== Analog Pins =====
 int potpinIE_ratio = 0;  
 int potpinTidVol = 1;  
-int potpinBPM = 5;
+int potpinBPM = 2;
 int pinMask = 4;
 int pinDiff = 3;
 int ledState = LOW;
@@ -74,7 +73,7 @@ NexText t5 = NexText(1, 7, "t5");
 NexText t_ie_ratio = NexText(0, 10, "t_ie_Ratio");
 NexText t_bpm = NexText(0, 11, "t_bpm");
 NexText t_tidvol = NexText(0, 12, "t_tidvol");
-String set_mode = "acv";
+String set_mode;
 NexTouch *nex_listen_list[] = {&b0,&b1,&b2,NULL};
 
 
@@ -103,11 +102,16 @@ void setup()
 // =========================================== 
 void loop()
 {
-  acv_mode();
+  //acv_mode();
   //while(set_mode == simvLabel) simv_mode();
 //  get b0.val;
   //while(set_mode == acvLabel) acv_mode();
 
+//maskPressure = pressureFromAnalog(pinMask,1000);
+//diffPressure = pressureFromAnalog(pinDiff,1000); 
+//fetchPotValues();
+
+acv_mode();
 }
 // ***************** END RUN RESPIRATOR  *******************
 
@@ -119,13 +123,12 @@ void acv_mode()
 {
   uint32_t cycleEndTime;
   bool firstRun = true;
-  //nexLoop(nex_listen_list);
-
+  
   while(true)
-  {   Serial.println(set_mode);
-      // Fetch all potentiometer valuess
+  {   
+      // Fetch all potentiometer values
       fetchPotValues();
-      nexLoop(nex_listen_list);
+
       // Initiate first run
       if(firstRun)
       {
@@ -146,6 +149,9 @@ void acv_mode()
       // ============ Update pressure values =========
       maskPressure = pressureFromAnalog(pinMask,1000);
       diffPressure = pressureFromAnalog(pinDiff,1000); 
+      Serial.println(maskPressure);
+      //print_to_screen();
+      //nexLoop(nex_listen_list);
       //computePrintVolFlow();
   }
   return;
@@ -255,6 +261,7 @@ void inspiration(float TidVol)
   timeNow = millis();
   for(pos = 30; pos <= TidVol+30; pos += 1) // goes from 0 degrees to 180 degrees
   {                                  // in steps of 1 degree
+    
     servo.write(pos);
     delay(1000/TidVol);                       
 
@@ -262,7 +269,9 @@ void inspiration(float TidVol)
     maskPressure = pressureFromAnalog(pinMask, count);
     diffPressure = pressureFromAnalog(pinDiff, count);  
     computePrintVolFlow();  
-    nexLoop(nex_listen_list); 
+    Serial.println(maskPressure);
+    //nexLoop(nex_listen_list); 
+    //print_to_screen();
     count++;
   }
 }
@@ -277,14 +286,16 @@ uint32_t expiration(float TidVol, float IE_ratio)
   totVolume = 0;
   timeNow = millis();
   for(int pos = TidVol+30; pos>=30; pos-=1)     // goes from 180 degrees to 0 degrees
-  {                                
+  {                               
     servo.write(pos);
     delay(1000*IE_ratio/TidVol);                       
     // ============ Update pressure values =========
     maskPressure = pressureFromAnalog(pinMask, count);    
     diffPressure = pressureFromAnalog(pinDiff, count);   
-    computePrintVolFlow();
-    nexLoop(nex_listen_list); 
+    Serial.println(maskPressure);
+    //computePrintVolFlow();
+    //nexLoop(nex_listen_list); 
+    //print_to_screen();
     count++;
   }  
   return millis();
@@ -411,20 +422,41 @@ void computePrintVolFlow()
 // Nextion Screen Functions
 // =======================
 void b0PopCallback(void *ptr) {
-  t_mode.setText("MODE : ACV");
-  set_mode = "acv"; 
-  //String message = myNextion.listen();
-  //Serial.println(message)
-  //while(set_mode == acvLabel){acv_mode();}
+  set_mode = "MODE : ACV"; 
+  t_mode.setText(set_mode.c_str());
 }
 
 void b1PopCallback(void *ptr) {
-  t_mode.setText("MODE : SIMV");
-  set_mode = "simv"; 
-  
+  set_mode = "MODE : SIMV"; 
+  t_mode.setText(set_mode.c_str());  
 }
 
 void b2PopCallback(void *ptr) {
-  t_mode.setText("MODE : None");
-  set_mode = "None"; 
+  set_mode = "MODE : None"; 
+  t_mode.setText(set_mode.c_str());
+}
+
+// =====================
+// Print to Screen
+// =====================
+void print_to_screen()
+{ 
+  t_mode.setText(set_mode.c_str());
+  static char ps_diff[6];
+  dtostrf(diffPressure, 6, 2, ps_diff);
+  static char ps_mask[6];
+  dtostrf(maskPressure, 6, 2, ps_mask);
+  t3.setText(ps_diff);
+  t5.setText(ps_mask);
+  static char ie_ratio[6];
+  dtostrf(IE_ratio, 6, 2, ie_ratio);
+  t_ie_ratio.setText(ie_ratio);
+  static char bpm[6];
+  dtostrf(BPM, 6, 2, bpm);
+  t_bpm.setText(bpm);
+  static char tidvol[6];
+  dtostrf(TidVol, 6, 2, tidvol);
+  t_tidvol.setText(tidvol);
+  
+  
 }
