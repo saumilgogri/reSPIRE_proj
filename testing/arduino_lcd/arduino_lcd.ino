@@ -187,9 +187,8 @@ void acv_mode()
         delay(15);
         cycleEndTime = expiration(TidVol, IE_ratio, mode);
       }
-      //transmit(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
-      send_to_screen(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
-
+      transmit(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
+      send_to_screen_values(BPM, IE_ratio, TidVol);
 }
 
 // =======================
@@ -274,7 +273,7 @@ void simv_mode()
         cycleEndTime = simv_logic(pressure_mask, TidVol, IE_ratio, mode);
       }
       transmit(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
-      send_to_screen(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
+      send_to_screen_values(BPM, IE_ratio, TidVol);
 }
 
 // =======================
@@ -312,7 +311,9 @@ void inspiration(float TidVol, String mode)
     pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;
     String data = mode + "," + pressure_mask + "," + pressure_diff + "," + pressure_expiration + ";";
     ventilator_data.println(data);
+    send_to_screen_graph(pressure_mask, pressure_expiration, pressure_diff);
   }
+  
 
 }
 
@@ -333,7 +334,9 @@ uint32_t expiration(float TidVol, float IE_ratio, String mode)
     pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;
     String data = mode + "," + pressure_mask + "," + pressure_diff + "," + pressure_expiration + ";";
     ventilator_data.println(data);
+    send_to_screen_graph(pressure_mask, pressure_expiration, pressure_diff);
   }
+  
   return millis();
 }
 
@@ -378,7 +381,7 @@ void transmit(float BPM, float IE_ratio, float pressure_mask, float pressure_exp
 // Print to Screen
 // =====================
 
-void send_to_screen(float BPM, float IE_ratio, float pressure_mask, float pressure_expiration, float TidVol, float pressure_diff){
+void send_to_screen_graph(float pressure_mask, float pressure_expiration, float pressure_diff){
   float p_mask = map(pressure_mask, 5.00, 20.00, 0, 255);
   float p_expiration = map(pressure_mask, 5.00, 20.00, 0, 255);
   float p_diff = map(pressure_mask, 5.00, 20.00, 0, 255);
@@ -388,13 +391,17 @@ void send_to_screen(float BPM, float IE_ratio, float pressure_mask, float pressu
   print_screen(to_send_p_diff);
   String to_send_p_exp = ad + id_3 + "," + ch + "," + int(p_expiration);
   print_screen(to_send_p_exp);
+  
+}
+
+void send_to_screen_values(float BPM, float IE_ratio, float TidVol){
   dtostrf(BPM, 6, 2, buffer);
   t_bpm.setText(buffer);
   dtostrf(IE_ratio,6,2,buffer_2);
   t_ie_ratio.setText(buffer_2);
   dtostrf(TidVol,6,2,buffer_3);
   t_tidvol.setText(buffer_3);
-  //t_mode.setText(set_mode.c_str());
+  t_mode.setText(set_mode.c_str());
 }
 
 void print_screen(String to_send){
