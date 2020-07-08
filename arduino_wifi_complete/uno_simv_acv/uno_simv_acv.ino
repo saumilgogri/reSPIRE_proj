@@ -5,20 +5,10 @@
 //#include "Queue.h"
 
 #include <Servo.h>
-#include <SoftwareSerial.h>
+#include<SoftwareSerial.h>
 #include <ArduinoJson.h>
 #include <Nextion.h>
-#include <SPI.h>
-#include <SD.h>
 #include "NexButton.h"
-
-//======== Information about SD Card ====
-/*
- ** MOSI - pin 11
- ** MISO - pin 12
- ** CLK - pin 13
- ** CS - pin 4
- */
 
 //====== Serial Connection with NODEMCU =====
 SoftwareSerial SUART(2, 3); //SRX=Dpin-2; STX-DPin-3
@@ -36,8 +26,6 @@ int potpinBPM = 2;
 int pinMask = 4;
 int pinDiff = 3;
 int ledState = LOW;
-int servoPin = 9;
-int SDPin = 4;
 
 
 // ==== Digital Pins =====
@@ -51,15 +39,17 @@ float constPressureDiff = 548;
 float slopePressureDiff = 204.8;
 
 // ===== Other vars ======
+float check_value;
 float IE_ratio;  
 float TidVol;  
 float BPM;
 float separation;  
+float sensorvalue;
 float maskPressure;
 float diffPressure;
 float volFlow;
-float diffPressureArr[5];
-float maskPressureArr[5];
+float diffPressureArr[90];
+float maskPressureArr[90];
 float area_1 = 0.0002835287370;
 float area_2 = 0.00007853981634;
 float rho = 1.225;
@@ -72,21 +62,7 @@ String simvLabel = "simv";
 int state = HIGH;      
 uint32_t lastPrint = millis();
 
-//======= SD Card File ===========
-File ventilator_data;
-
-//====== LCD Variables ==============
-int screen_ID1 = 1;
-int screen_CH = 0;
-int screen_ID2 = 8;
-int screen_ID3 = 9;
-String screenString_add = "add ";
-char buffer_1[10] = {0};
-char buffer_2[10] = {0};
-char buffer_3[10] = {0};
-NexText t0 = NexText(0, 2, "t0");
-NexText t1 = NexText(0, 3, "t0");
-NexText t2 = NexText(0, 4, "t2"); 
+// Declare your Nextion objects - Example (page id = 0, component id = 1, component name = "b0") 
 NexText t_mode = NexText(0, 9, "t_mode");
 NexButton b0 = NexButton(0, 2, "b0");
 NexButton b1 = NexButton(0, 3, "b1");
@@ -103,12 +79,7 @@ NexTouch *nex_listen_list[] = {&b0,&b1,&b2,NULL};
 
 void setup()
 {
-  servo.attach(servoPin);  
-  if (!SD.begin(SDPin)) {
-    Serial.println("initialization failed!");
-    return;
-  }
-  ventilator_data = SD.open("ventilator_data.txt",FILE_WRITE);
+  servo.attach(9);  
   Serial.begin(9600);
   SUART.begin(9600); 
 //  attachInterrupt(0, pin_ISR, CHANGE);
@@ -136,7 +107,11 @@ void loop()
 //  get b0.val;
   //while(set_mode == acvLabel) acv_mode();
 
-acv_mode();
+//maskPressure = pressureFromAnalog(pinMask,1000);
+//diffPressure = pressureFromAnalog(pinDiff,1000); 
+//fetchPotValues();
+
+nexLoop(nex_listen_list);
 }
 // ***************** END RUN RESPIRATOR  *******************
 
@@ -177,10 +152,7 @@ void acv_mode()
       Serial.println(maskPressure);
       //print_to_screen();
       //nexLoop(nex_listen_list);
-      computePrintVolFlow();
-      transmit();
-      send_to_screen();
-      print_to_SDCard();
+      //computePrintVolFlow();
   }
   return;
 }
@@ -297,8 +269,7 @@ void inspiration(float TidVol)
     maskPressure = pressureFromAnalog(pinMask, count);
     diffPressure = pressureFromAnalog(pinDiff, count);  
     computePrintVolFlow();  
-    send_to_screen();
-    print_to_SDCard();
+    Serial.println(maskPressure);
     //nexLoop(nex_listen_list); 
     //print_to_screen();
     count++;
@@ -321,9 +292,8 @@ uint32_t expiration(float TidVol, float IE_ratio)
     // ============ Update pressure values =========
     maskPressure = pressureFromAnalog(pinMask, count);    
     diffPressure = pressureFromAnalog(pinDiff, count);   
-    computePrintVolFlow();
-    send_to_screen();
-    print_to_SDCard();
+    Serial.println(maskPressure);
+    //computePrintVolFlow();
     //nexLoop(nex_listen_list); 
     //print_to_screen();
     count++;
@@ -348,6 +318,10 @@ void fetchPotValues()
         separation = (60/BPM - (1+IE_ratio))*1000;
       }
 }
+
+// =====================
+// Transmit to DB
+// =====================
 
 
 
@@ -433,15 +407,17 @@ void buzzAlarm(bool turnOn)
 // =======================
 void computePrintVolFlow()
 { 
-  volFlow =  1000*sqrt((abs(diffPressure)*2*rho)/((1/(pow(area_2,2)))-(1/(pow(area_1,2)))))/rho; 
+  float flow;
+  flow =  1000*sqrt((abs(diffPressure)*2*rho)/((1/(pow(area_2,2)))-(1/(pow(area_1,2)))))/rho; 
   if (millis() - lastPrint >= uint32_t(100))
     { 
+      //Serial.println(flow);
       lastPrint = millis();
     }
-  if(volFlow > 0.4)totVolume = totVolume + volFlow*(millis() - timeNow);
+  if(flow > 0.4)totVolume = totVolume + flow*(millis() - timeNow);
   timeNow = millis();
+  //Serial.println(totVolume);
 }
-
 // =======================
 // Nextion Screen Functions
 // =======================
@@ -459,54 +435,6 @@ void b2PopCallback(void *ptr) {
   set_mode = "MODE : None"; 
   t_mode.setText(set_mode.c_str());
 }
-
-// =====================
-// Print to SD Card
-// =====================
-void print_to_SDCard()
-{
-  String data = ""; //maskPressure + "," + diffPressure + "," + volFlow + "," + totVolume + ";";
-  ventilator_data.println(data);
-}
-
-
-// =====================
-// Transmit to DB
-// =====================
-void transmit()
-{
-      String message = "";
-      boolean messageReady = false;
-      while(SUART.available()) {
-        message = SUART.readString();
-        Serial.println(message);
-        messageReady = true;
-        }
-      if(messageReady) {
-      // The only messages we'll parse will be formatted in JSON
-      const int capacity = JSON_OBJECT_SIZE(7);
-      StaticJsonBuffer<capacity> jb;
-      JsonObject& doc = jb.parseObject(message);
-      //DynamicJsonDocument doc(1024); // ArduinoJson version 6+
-      // Attempt to deserialize the message
-      if(!(doc.success())){
-        Serial.println("Doc conversion failed");
-        messageReady = false;
-        doc["type"] = "incorrect";
-      }
-      if(doc["type"] == "request") {
-        doc["type"] = "response";
-        doc["BPM"] = BPM;
-        doc["IE_ratio"] = IE_ratio;
-        doc["TidVol"] = TidVol;
-        doc["maskPressure"] = maskPressure;
-        doc["diffPressure"] = diffPressure; 
-        doc["totVolume"] = totVolume;
-        doc.printTo(SUART);
-      }
-      }
-      }
-
 
 // =====================
 // Print to Screen
@@ -529,33 +457,6 @@ void print_to_screen()
   static char tidvol[6];
   dtostrf(TidVol, 6, 2, tidvol);
   t_tidvol.setText(tidvol);
-}
-
-
-// =====================
-// Print to Screen - Pavan
-// =====================
-
-void send_to_screen()
-{
-  String maskPressurePush = screenString_add + screen_ID1 + "," + screen_CH + "," + int(maskPressure);
-  print_screen(maskPressurePush);
-  String volFlowPush = screenString_add + screen_ID2 + "," + screen_CH + "," + int(volFlow);
-  print_screen(volFlowPush);
-  String totVolumePush = screenString_add + screen_ID3 + "," + screen_CH + "," + int(totVolume);
-  print_screen(totVolumePush);
-  dtostrf(BPM, 6, 2, buffer_1);
-  t0.setText(buffer_1);
-  dtostrf(IE_ratio,6,2,buffer_2);
-  t1.setText(buffer_2);
-  dtostrf(TidVol,6,2,buffer_3);
-  t2.setText(buffer_3);
-}
-
-void print_screen(String to_send)
-{
-  Serial.print(to_send);
-  Serial.write(0xff);
-  Serial.write(0xff);
-  Serial.write(0xff);
+  
+  
 }
