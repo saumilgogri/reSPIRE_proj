@@ -1,3 +1,4 @@
+
 #include <Servo.h>
 #include<SoftwareSerial.h>
 #include <ArduinoJson.h>
@@ -16,7 +17,7 @@
 
 //====== Serial COnnection with NODEMCU =====
 SoftwareSerial SUART(2, 3); //SRX=Dpin-2; STX-DPin-3
-
+SoftwareSerial nextion(0,1);
 //====== LCD Variables ==============
 int id_1 = 5;
 int ch = 0;
@@ -35,16 +36,12 @@ NexText t_mode = NexText(0, 12, "t_mode");
 NexButton b0 = NexButton(0,2,"b0");
 NexButton b1 = NexButton(0,3,"b1");
 
-NexTouch *nex_listen_list[] = {
-&b0,
-&b1,
-NULL
-};
+NexTouch *nex_listen_list[] = {&b0,&b1,NULL};
 
 void b0PopCallback(void *ptr){
 set_mode = "ACV";
-set_mode.toCharArray(buffer_mode,5);
-t_mode.setText(buffer_mode);
+//set_mode.toCharArray(buffer_mode,5);
+t_mode.setText(set_mode.c_str());
 }
 
 //Button b1 component popcallback function
@@ -52,8 +49,8 @@ t_mode.setText(buffer_mode);
 
 void b1PopCallback(void *ptr){
 set_mode = "SIMV";
-set_mode.toCharArray(buffer_mode,5);
-t_mode.setText(buffer_mode);
+//set_mode.toCharArray(buffer_mode,5);
+t_mode.setText(set_mode.c_str());
 }
 
 //===== Variables =====
@@ -110,13 +107,13 @@ void setup()
   servoright.attach(9);  // attaches the servo on pin 9 to the servo object
   Serial.begin(9600);
   SUART.begin(9600); //enable SUART Port for communication with NODEMCU
-  pinMode(10,OUTPUT);
-  if (!SD.begin(4)) {
-    Serial.println("initialization failed!");
-    return;
-  }
-  Serial.println("SD Card Initialization done.");
-  ventilator_data = SD.open("ventilator_data.txt",FILE_WRITE);
+  //pinMode(10,OUTPUT);
+  //if (!SD.begin(4)) {
+  //  Serial.println("initialization failed!");
+  //  return;
+  //}
+  //Serial.println("SD Card Initialization done.");
+  //ventilator_data = SD.open("ventilator_data.txt",FILE_WRITE);
   nexInit();
   b0.attachPop(b0PopCallback,&b0);
   b1.attachPop(b1PopCallback,&b1);
@@ -125,9 +122,8 @@ void setup()
 void loop()
 {
         nexLoop(nex_listen_list);
-        /*
-        if (set_mode == "ACV"){
         
+        if (set_mode == "ACV"){
         acv_mode();
         }
         else if(set_mode == "SIMV"){
@@ -139,8 +135,7 @@ void loop()
           set_mode.toCharArray(buffer_mode,5);
           t_mode.setText(buffer_mode);
         }
-        */
-        delay(5000);
+        
 }
 
 // =======================
@@ -302,9 +297,12 @@ float average_pressure_mask()
 // Inspiration Function
 // =======================
 void inspiration(float TidVol, String mode)
-{ int pos;
+{ 
+  int pos;
   for(pos = 30; pos <= TidVol+30; pos += 1) // goes from 0 degrees to 180 degrees
-  {                                  // in steps of 1 degree
+  { 
+    // in steps of 1 degree
+    nexLoop(nex_listen_list);
     servoright.write(pos);
     delay(1000/TidVol);
 
@@ -326,6 +324,7 @@ uint32_t expiration(float TidVol, float IE_ratio, String mode)
 {
   for(pos = TidVol+30; pos>=30; pos-=1)     // goes from 180 degrees to 0 degrees
   {
+    nexLoop(nex_listen_list);
     servoright.write(pos);
     delay(1000*IE_ratio/TidVol);
     // ============ Update pressure values =========
@@ -395,9 +394,12 @@ void send_to_screen(float BPM, float IE_ratio, float pressure_mask, float pressu
   t_ie_ratio.setText(buffer_2);
   dtostrf(TidVol,6,2,buffer_3);
   t_tidvol.setText(buffer_3);
+  //t_mode.setText(set_mode.c_str());
 }
 
 void print_screen(String to_send){
   Serial.print(to_send);
   Serial.print("\xFF\xFF\xFF");
 }
+
+
