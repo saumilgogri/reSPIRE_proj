@@ -23,7 +23,7 @@ int pos = 0;
 int potpinIE_ratio = 0;  
 int potpinTidVol = 1;  
 int potpinBPM = 2;
-int pinMask = 4;
+int pinMask = 4; 
 int pinDiff = 3;
 int ledState = LOW;
 
@@ -102,7 +102,7 @@ void setup()
 // =========================================== 
 void loop()
 {
-  //acv_mode();
+  acv_mode();
   //while(set_mode == simvLabel) simv_mode();
 //  get b0.val;
   //while(set_mode == acvLabel) acv_mode();
@@ -111,7 +111,7 @@ void loop()
 //diffPressure = pressureFromAnalog(pinDiff,1000); 
 //fetchPotValues();
 
-nexLoop(nex_listen_list);
+//nexLoop(nex_listen_list);
 }
 // ***************** END RUN RESPIRATOR  *******************
 
