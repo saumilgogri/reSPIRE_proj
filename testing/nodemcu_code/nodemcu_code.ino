@@ -1,380 +1,105 @@
-#include <SPI.h>
-#include <SD.h>
-#include <Servo.h>
-#include<SoftwareSerial.h>
+
+#ifdef ESP32
+  #include <WiFi.h>
+  #include <HTTPClient.h>
+#else
+  #include <ESP8266WiFi.h>
+  #include <ESP8266HTTPClient.h>
+  #include <WiFiClient.h>
+#endif
 #include <ArduinoJson.h>
-#include <SPI.h>
-#include <SD.h>
-#include <Nextion.h>
+#include <Wire.h>
+#include <FirebaseArduino.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 
-// ==== Analog Pins =====
-float potpinIE_ratio = 0;
-int potpinTidVol = 1;
-int potpinBPM = 5;
-int pinguage_mask = 4;
-int pinguage_expiration = 3;
-int pinguage_diff = 2;
+#include<SoftwareSerial.h>
+SoftwareSerial SUART(4, 5); //SRX=Dpin-D2; STX-DPin-D1
 
-// ===== Other vars ======
-float check_value;
-float IE_ratio;
-float TidVol;
-float BPM;
-float separation;
-float sensorvalue;
-//float pressure_mask;
-//float pressure_expiration;
-//float pressure_diff;
+#define FIREBASE_HOST "respire-447da.firebaseio.com"
+#define FIREBASE_AUTH "vsloiSErdIEyQMV6ydzwaELOPVSP5dPqiOobAURm"
+#define NTP_OFFSET   60 * 60      // In seconds
+#define NTP_INTERVAL 60 * 1000    // In miliseconds
+#define NTP_ADDRESS  "europe.pool.ntp.org"
 
-//====== Serial COnnection with NODEMCU =====
-SoftwareSerial SUART(2, 3); //SRX=Dpin-2; STX-DPin-3
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, NTP_ADDRESS, NTP_OFFSET, NTP_INTERVAL);
 
-//====== LCD Variables ==============
-int id_1 = 5;
-int ch = 0;
-int id_2 = 4;
-int id_3 = 3;
-String ad = "add ";
-static char buffer[10] = {};
-static char buffer_2[10] = {};
-static char buffer_3[10] = {};
-static char buffer_mode[10] = {};
-String set_mode = "ACV";
-NexText t_ie_ratio = NexText(0, 8, "t_ie_ratio");
-NexText t_bpm = NexText(0, 9, "t_bpm");
-NexText t_tidvol = NexText(0, 10, "t_tidvol");
-NexText t_mode = NexText(0, 12, "t_mode");
-NexButton b0 = NexButton(0, 2, "b0");
-NexButton b1 = NexButton(0, 3, "b1");
+//=======================================
+unsigned long time_1;
+bool test_2;
+String last_char = "]";
+time_t start_time;
+//const byte numChars = 300;
+//char receivedChars[numChars];   // an array to store the received data
 
-float pressure_mask = 4.55;
-float pressure_diff = 5.55;
-float pressure_expiration = 6.55;
-      
-NexTouch *nex_listen_list[] = {&b0, &b1, NULL};
+// Replace with your network credentials
+const char* ssid     = "NETGEAR28";
+const char* password = "bluesky089";  
 
+// REPLACE with your Domain name and URL path or IP address with path
+const char* serverName = "http://respire.000webhostapp.com/post-esp-data.php";
 
-void b0PopCallback(void *ptr) {
-  set_mode = "ACV";
-  //set_mode.toCharArray(buffer_mode,5);
-  t_mode.setText(set_mode.c_str());
-}
+// Keep this API Key value to be compatible with the PHP code provided in the project page. 
+// If you change the apiKeyValue value, the PHP file /post-esp-data.php also needs to have the same key 
+String apiKeyValue = "xPmAT5Ab3j7F6";
 
-//Button b1 component popcallback function
-// When OFF button is released the LED turns OFF and the state text changes
+String sensorName = "MPXDIFF";
+String sensorLocation = "San Diego";
 
-void b1PopCallback(void *ptr) {
-  set_mode = "SIMV";
-  t_mode.setText(set_mode.c_str());
-}
-
-
-// ==== Sensor Offset =====
-const float guageSensorOffset = 41;
-
-const float pressureDiffSensorOffset = 41;
-
-//===== Variables =====
-Servo servoright;
-int pos = 0;
-
-//======= SD Card File ===========
-File myFile;
-
-String mode = "";
+boolean newData = false;
 
 void setup() {
-  Serial.begin(9600);
-  SUART.begin(9600);
-  servoright.attach(9);
-  pinMode(10, OUTPUT);
-  if (!SD.begin(4)) {
-   Serial.println("initialization failed!");
-   return;
+  Serial.begin(9600); //enable Serial Monitor
+  SUART.begin(9600); //enable SUART Port
+  WiFi.begin(ssid, password);
+  Serial.println("Connecting");
+  while(WiFi.status() != WL_CONNECTED) { 
+    delay(500);
+    Serial.print(".");
   }
-  Serial.println("SD Card Initialization done.");
-  nexInit();
-  b0.attachPop(b0PopCallback, &b0);
-  b1.attachPop(b1PopCallback, &b1);
+  Serial.println("");
+  Serial.print("Connected to WiFi network with IP Address: ");
+  Serial.println(WiFi.localIP());
+  Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
+  Firebase.setFloat("test_number", 42.0); 
+  Serial.println("Connected to Firebase");
+  
+  timeClient.begin();
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-    myFile = SD.open("example.txt", FILE_WRITE);
-    if(myFile){
-      Serial.println("The file is open");
-      myFile.close();
+  timeClient.update();
+  const int capacity = JSON_OBJECT_SIZE(1);
+  StaticJsonBuffer<capacity> jb;
+  JsonObject& doc = jb.createObject();
+  doc["type"] = "request";
+  String message = "";
+  String test = "";
+  boolean messageReady = false;
+  doc.printTo(SUART);
+  start_time = millis();
+  while(messageReady == false) { // blocking but that's ok
+      message = SUART.readString();
+      Serial.println("message was received");
+      if(message == ""){
+        return;
+      }
+      messageReady = true;
     }
-    else
-    {
-      Serial.println("Error opening this file");
-      myFile.close();
-      }
-    if (set_mode == "ACV") {
-    myFile = SD.open("example.txt", FILE_WRITE);
-    acv_mode();
-    myFile.close();
+  send_data(message);
+  jb.clear();
+  delay(1000);
   }
-  else if (set_mode == "SIMV") {
-    myFile = SD.open("example.txt", FILE_WRITE);
-    simv_mode();
-    myFile.close();
-  }
-    
-}
+  
 
-void acv_mode()
-{
-  float IE_ratio;
-  float TidVol;
-  float BPM;
-  float per_breath_time;
-  float per_inspiration_time;
-  float per_expiration_time;
-  float human_effort;
-  float separation;
-  uint32_t cycleEndTime;
-  bool firstRun = true;
-  mode = "ACV";
+//======================================
 
 
-  // Fetch all potentiometer values
-  IE_ratio = map(analogRead(potpinIE_ratio), 0, 1023, 1.00, 4.00);
-  TidVol = map(analogRead(potpinTidVol), 0, 1023, 40.00, 90.00);
-  BPM = map(analogRead(potpinBPM), 0, 1023, 8.00, 30.00);
-  separation = (60 / BPM - (1 + IE_ratio));
-  if (separation < 0)
-  { IE_ratio = 60 / BPM - 1;
-    separation = 60 / BPM - (1 + IE_ratio);
-  }
-
-  // Fetch pressure sensor values
-  pressure_mask = (map(analogRead(pinguage_mask), 0, 1023, 0, 1023) - guageSensorOffset) * 10.1972 / 92;
-  pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset) * 10.1972 / 92;
-  pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset) * 10.1972 / 92;
-  // Initiate the cycle
-  if (firstRun)
-  {
-    inspiration(TidVol, mode);
-    delay(15);
-    cycleEndTime = expiration(TidVol, IE_ratio, mode);
-    firstRun = false;
-  }
-
-  // ========= Identify trigger and initiate the cycle =============
-  if (millis() - cycleEndTime >= (uint32_t)separation * 1000 || pressure_mask < -1)
-  {
-    inspiration(TidVol, mode);
-    delay(15);
-    cycleEndTime = expiration(TidVol, IE_ratio, mode);
-  }
-  send_to_screen_values(BPM, IE_ratio, TidVol);
-}
-
-void inspiration(float TidVol, String mode)
-{
-  int pos;
-  for (pos = 30; pos <= TidVol + 30; pos += 2) // goes from 0 degrees to 180 degrees
-  {
-    
-    servoright.write(pos);
-    delay(1000 / TidVol);
-
-    // ============ Update pressure values =========
-    //pressure_mask = (map(analogRead(pinguage_mask), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;
-    //pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset)*10.1972/92;
-    //pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;
-      String data = mode + "," + String(pressure_mask) + "," + String(pressure_diff) + "," + String(pressure_expiration) + ";";
-      myFile.println(data);
-      send_to_screen_graph(pressure_mask, pressure_expiration, pressure_diff);
-      nexLoop(nex_listen_list);
-  }
-  transmit(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
-}
-
-// =====================
-// Expiration Function
-// =====================
-
-uint32_t expiration(float TidVol, float IE_ratio, String mode)
-{
-  for (pos = TidVol + 30; pos >= 30; pos -= 2) // goes from 180 degrees to 0 degrees
-  { 
-    nexLoop(nex_listen_list);
-    servoright.write(pos);
-    delay(1000 * IE_ratio / TidVol);
-    // ============ Update pressure values =========
-    //pressure_mask = (map(analogRead(pinguage_mask), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;
-    //pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset)*10.1972/92;
-    //pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset)*10.1972/92;
-      //Serial.println("Here inside inspiration");
-      String data = mode + "," + String(pressure_mask) + "," + String(pressure_diff) + "," + String(pressure_expiration) + ";";
-      myFile.println(data); 
-      send_to_screen_graph(pressure_mask, pressure_expiration, pressure_diff);
-  }
-  transmit(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
-  return millis();
-}
-
-void simv_mode()
-{
-  uint32_t cycleEndTime;
-  bool firstRun = true;
-  mode = "SIMV";
-  // Fetch all potentiometer values
-  IE_ratio = map(analogRead(potpinIE_ratio), 0, 1023, 1.00, 4.00);
-  TidVol = map(analogRead(potpinTidVol), 0, 1023, 40.00, 90.00);
-  BPM = map(analogRead(potpinBPM), 0, 1023, 8.00, 30.00);
-  separation = (60 / BPM - (1 + IE_ratio));
-  if (separation < 0)
-  { IE_ratio = 60 / BPM - 1;
-    separation = 60 / BPM - (1 + IE_ratio);
-  }
-  // Fetch pressure sensor values
-  pressure_mask = (map(analogRead(pinguage_mask), 0, 1023, 0, 1023) - guageSensorOffset) * 10.1972 / 92;
-  pressure_diff = (map(analogRead(pinguage_diff), 0, 1023, 0, 1023) - pressureDiffSensorOffset) * 10.1972 / 92;
-  pressure_expiration = (map(analogRead(pinguage_expiration), 0, 1023, 0, 1023) - guageSensorOffset) * 10.1972 / 92;
-
-
-  // Initiate the cycle
-  if (firstRun)
-  {
-    pressure_mask = average_pressure_mask();
-    cycleEndTime = simv_logic(pressure_mask, TidVol, IE_ratio, mode);
-    firstRun = false;
-  }
-
-  // ========= Identify trigger and initiate the cycle =============
-  if (millis() - cycleEndTime >= (uint32_t)separation * 1000 || average_pressure_mask() < -1)
-  {
-    pressure_mask = average_pressure_mask();
-    cycleEndTime = simv_logic(pressure_mask, TidVol, IE_ratio, mode);
-  }
-  send_to_screen_values(BPM, IE_ratio, TidVol);
-}
-
-
-// =======================
-// SIMV Logic Function
-// =======================
-
-uint32_t simv_logic(float pressure_mask, float TidVol, float IE_ratio, String mode)
-{
-  uint32_t cycleEndTime;
-  pressure_mask = int(floor(pressure_mask));
-  switch (int(pressure_mask)) {
-    case -6:
-    case -5:
-    case -4:
-      TidVol = TidVol * 0.25;
-      inspiration(TidVol, mode);
-      delay(15);
-      cycleEndTime = expiration(TidVol, IE_ratio, mode);
-      break;
-    case -3:
-      TidVol = TidVol * 0.50;
-      inspiration(TidVol, mode);
-      delay(15);
-      cycleEndTime = expiration(TidVol, IE_ratio, mode);
-      break;
-    case -2:
-      TidVol = TidVol * 0.75;
-      inspiration(TidVol, mode);
-      delay(15);
-      cycleEndTime = expiration(TidVol, IE_ratio, mode);
-      break;
-    case -1:
-      TidVol = TidVol * 0.75;
-      inspiration(TidVol, mode);
-      delay(15);
-      cycleEndTime = expiration(TidVol, IE_ratio, mode);
-      break;
-    default:
-      inspiration(TidVol, mode);
-      delay(15);
-      cycleEndTime = expiration(TidVol, IE_ratio, mode);
-      break;
-  }
-  return cycleEndTime;
-}
-
-// =======================
-// Average Pressure Function
-// =======================
-
-float average_pressure_mask()
-{
-  pressure_mask = 0;
-  for (int i = 0; i < 5; i++)
-  {
-    pressure_mask = pressure_mask + (map(analogRead(pinguage_mask), 0, 1023, 0, 1023) - guageSensorOffset) * 10.1972 / 92;
-    delay(3);
-  }
-  return (pressure_mask/5);
-}
-
-
-// =====================
-// Print to Screen
-// =====================
-
-void send_to_screen_graph(float pressure_mask, float pressure_expiration, float pressure_diff) {
-  float p_mask = map(pressure_mask, 5.00, 20.00, 0, 255);
-  float p_expiration = map(pressure_mask, 5.00, 20.00, 0, 255);
-  float p_diff = map(pressure_mask, 5.00, 20.00, 0, 255);
-  String to_send_p_mask = ad + id_1 + "," + ch + "," + int(p_mask);
-  print_screen(to_send_p_mask);
-  String to_send_p_diff = ad + id_2 + "," + ch + "," + int(p_diff);
-  print_screen(to_send_p_diff);
-  String to_send_p_exp = ad + id_3 + "," + ch + "," + int(p_expiration);
-  print_screen(to_send_p_exp);
-}
-
-void send_to_screen_values(float BPM, float IE_ratio, float TidVol) {
-  dtostrf(BPM, 6, 2, buffer);
-  t_bpm.setText(buffer);
-  dtostrf(IE_ratio, 6, 2, buffer_2);
-  t_ie_ratio.setText(buffer_2);
-  dtostrf(TidVol, 6, 2, buffer_3);
-  t_tidvol.setText(buffer_3);
-  t_mode.setText(set_mode.c_str());
-}
-
-void print_screen(String to_send) {
-  Serial.print(to_send);
-  Serial.print("\xFF\xFF\xFF");
-}
-
-
-// =====================
-// Transmit to DB
-// =====================
-
-void transmit(float BPM, float IE_ratio, float pressure_mask, float pressure_expiration, float TidVol, float pressure_diff){
-      Serial.println("Inside the transmit function");
-      String message = "";
-      boolean messageReady = false;
-      while(SUART.available()) {
-        message = SUART.readString();
-        Serial.println(message);
-        messageReady = true;
-        }
-      if(messageReady) {
-      // The only messages we'll parse will be formatted in JSON
-      
-      const int capacity_data = JSON_OBJECT_SIZE(7);
-      StaticJsonBuffer<capacity_data> jb_data;
-      JsonObject& doc = jb_data.createObject();
-      doc["type"].set("response");
-      doc["BPM"].set(BPM);
-      doc["IE_ratio"].set(IE_ratio);
-      doc["pressure_mask"].set(pressure_mask);
-      doc["pressure_expiration"].set(pressure_expiration);
-      doc["TidVol"].set(TidVol);
-      doc["pressure_diff"].set(pressure_diff);
-      doc.printTo(SUART);
-      doc.printTo(Serial);
-      }
-      }
-
-      
+void send_data(String message) {
+if(WiFi.status()== WL_CONNECTED){
+    String time_now = timeClient.getFormattedTime();
+    Firebase.setString(time_now, message);
+    Serial.println(message);
+    Serial.println("The string was pushed");
+}}
