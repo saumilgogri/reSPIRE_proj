@@ -1,5 +1,4 @@
-#include <SPI.h>
-#include <SD.h>
+
 #include <Servo.h>
 #include<SoftwareSerial.h>
 #include <ArduinoJson.h>
@@ -96,6 +95,7 @@ void setup() {
   nexInit();
   b0.attachPop(b0PopCallback, &b0);
   b1.attachPop(b1PopCallback, &b1);
+
 }
 
 void loop() {
@@ -110,6 +110,8 @@ void loop() {
       Serial.println("Error opening this file");
       myFile.close();
       }
+    // Run ventilator
+    send_to_screen_values(BPM, IE_ratio, TidVol);
     if (set_mode == "ACV") {
     myFile = SD.open("example.txt", FILE_WRITE);
     acv_mode();
@@ -187,7 +189,8 @@ void inspiration(float TidVol, String mode)
       String data = mode + "," + String(pressure_mask) + "," + String(pressure_diff) + "," + String(pressure_expiration) + ";";
       myFile.println(data);
       send_to_screen_graph(pressure_mask, pressure_expiration, pressure_diff);
-      nexLoop(nex_listen_list);
+      //send_to_screen_values(BPM, IE_ratio, TidVol);
+      //nexLoop(nex_listen_list);
   }
   transmit(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
 }
@@ -200,7 +203,7 @@ uint32_t expiration(float TidVol, float IE_ratio, String mode)
 {
   for (pos = TidVol + 30; pos >= 30; pos -= 2) // goes from 180 degrees to 0 degrees
   { 
-    nexLoop(nex_listen_list);
+    //nexLoop(nex_listen_list);
     servoright.write(pos);
     delay(1000 * IE_ratio / TidVol);
     // ============ Update pressure values =========
@@ -211,6 +214,7 @@ uint32_t expiration(float TidVol, float IE_ratio, String mode)
       String data = mode + "," + String(pressure_mask) + "," + String(pressure_diff) + "," + String(pressure_expiration) + ";";
       myFile.println(data); 
       send_to_screen_graph(pressure_mask, pressure_expiration, pressure_diff);
+      //send_to_screen_values(BPM, IE_ratio, TidVol);
   }
   transmit(BPM, IE_ratio, pressure_mask, pressure_expiration, TidVol, pressure_diff);
   return millis();
