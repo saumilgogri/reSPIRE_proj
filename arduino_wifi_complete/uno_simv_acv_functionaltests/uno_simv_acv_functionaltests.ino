@@ -13,7 +13,7 @@ SoftwareSerial SUART(2, 3); //SRX=Dpin-2; STX-DPin-3
 
 // setup servo
 Servo servo;
-int pos = 0;   
+float pos = 0;   
 
 // ==== Analog Pins =====
 int potpinIE_ratio = 0;  
@@ -29,9 +29,9 @@ const int buzzerPin = 5;
 const int ledPin = 6;
 
 // ==== Sensor Offset =====
-float constPressureMask = 41;
-float slopePressureMask = 92;
-float constPressureDiff = 548;
+float constPressureMask = 512+24.1;
+float slopePressureMask = 204.8;
+float constPressureDiff = 512+21;
 float slopePressureDiff = 204.8;
 
 // ===== Other vars ======
@@ -205,7 +205,26 @@ void loop()
     Serial.write(0xff);
     Serial.write(0xff);
     Serial.write(0xff); */
- 
+/*     fetchPotValues();
+    send_to_screen_values();
+    delay(500);
+    nexLoop(nex_listen_list);
+    if(set_mode == "ACV" && start == 1)
+    {
+      Serial.println("I am here");
+      simv_mode();    
+    }
+    Serial.println("I am not lost!!"); */
+    simv_mode();
+    //Serial.println(set_mode);
+    //Serial.println(start);
+  //if(set_mode == "ACV" && start == true)
+  //{
+  //    acv_mode();
+  //}
+  
+  //send_to_screen_values();
+  //}
   
   //delay(500);
   //send_to_screen_values();
@@ -291,7 +310,7 @@ void simv_mode()
   uint32_t cycleEndTime;
   bool firstRun = true;
 
-  while(start == 1)
+  while(true)
   {
       // Fetch all potentiometer values
       fetchPotValues();
@@ -311,11 +330,10 @@ void simv_mode()
         delay(15);
         cycleEndTime = expiration(TidVol, IE_ratio);
       }
-      send_to_screen_values();
-      send_to_screen_graph();
-      nexLoop(nex_listen_list); 
-      if(start == 0) break;
-      Serial.println(start);
+
+      maskPressure = pressureFromAnalog(pinMask,1000);
+      diffPressure = pressureFromAnalog(pinDiff,1000); 
+      Serial.println(totVolume);
   }
   return;
 }
@@ -389,20 +407,20 @@ void inspiration(float TidVol)
 { int count = 0;
   totVolume = 0;
   timeNow = millis();
-  for(pos = 30; pos <= TidVol+30; pos += 2) // goes from 0 degrees to 180 degrees
+  for(pos = 0; pos <= TidVol; pos += 0.5) // goes from 0 degrees to 180 degrees
   {                                  // in steps of 1 degree
     
-    servo.write(pos);
+    servo.write(pos+1.5);
     delay(1000/TidVol);                       
 
     // ============ Update pressure values =========
     maskPressure = pressureFromAnalog(pinMask, count);
     diffPressure = pressureFromAnalog(pinDiff, count);  
     computePrintVolFlow();  
+    Serial.println(totVolume);
     //String data = set_mode + "," + String(maskPressure) + "," + String(volFlow) + "," + String(totVolume) + ";";
     //Serial.println(set_mode + "," + String(maskPressure) + "," + String(volFlow) + "," + String(totVolume) + ";");
     //myFile.println(data);
-    send_to_screen_graph();
     //nexLoop(nex_listen_list);
     //send_to_screen_values();
     //nexLoop(nex_listen_list); 
@@ -419,18 +437,18 @@ uint32_t expiration(float TidVol, float IE_ratio)
   int count = 0;
   totVolume = 0;
   timeNow = millis();
-  for(int pos = TidVol+30; pos>=30; pos-=2)     // goes from 180 degrees to 0 degrees
+  for(int pos = TidVol; pos>=2; pos-=0.5)     // goes from 180 degrees to 0 degrees
   {                               
-    servo.write(pos);
+    servo.write(pos-1.5);
     delay(1000*IE_ratio/TidVol);                       
     // ============ Update pressure values =========
     maskPressure = pressureFromAnalog(pinMask, count);    
     diffPressure = pressureFromAnalog(pinDiff, count);   
-    computePrintVolFlow();
+    //computePrintVolFlow();
     //String data = set_mode + "," + String(maskPressure) + "," + String(volFlow) + "," + String(totVolume) + ";";
     //Serial.println(set_mode + "," + String(maskPressure) + "," + String(volFlow) + "," + String(totVolume) + ";");
     //myFile.println(data);
-    send_to_screen_graph();
+    Serial.println(totVolume);
     //send_to_screen_values();
     //nexLoop(nex_listen_list); 
     count++;
@@ -445,7 +463,7 @@ void fetchPotValues()
 {
   // Fetch all potentiometer values
       IE_ratio = map(analogRead(potpinIE_ratio), 0, 1023, 1.00, 4.00);    
-      TidVol = map(analogRead(potpinTidVol), 0, 1023, 40.00, 90.00);     
+      TidVol = map(analogRead(potpinTidVol), 0, 1023, 40.00, 120.00);     
       BPM = map(analogRead(potpinBPM), 0, 1023, 8.00, 30.00);     
       separation = 1000*(60/BPM - (1+IE_ratio));  // convert to milliseconds
       // Correct separation time if needed
@@ -464,16 +482,16 @@ void fetchPotValues()
 float pressureFromAnalog(int pin, int count)
 { float pressure;
   pressure = analogRead(pin);
-  // Differential pressure sensor - output cmH2O
+  // Differential pressure sensor - output Pascal
   if (pin == pinDiff)
   {
     pressure = (pressure - constPressureDiff)*1000/slopePressureDiff;  
     if (count != 1000) {diffPressureArr[count] = pressure;}
   }
-  // Guage pressure sensor - output Pascal
+  // Guage pressure sensor - output cmH20
   if (pin == pinMask)
   {
-    pressure = pressure = (pressure - constPressureMask)*10.1972/slopePressureMask;;
+    pressure = (pressure - constPressureMask)*10.1972/slopePressureMask;;
     if (count != 1000) {maskPressureArr[count] = pressure;}
   }
 
@@ -540,7 +558,6 @@ void buzzAlarm(bool turnOn)
 // =======================
 void computePrintVolFlow()
 { 
-  
   volFlow =  1000*sqrt((abs(diffPressure)*2*rho)/((1/(pow(area_2,2)))-(1/(pow(area_1,2)))))/rho; 
   if (millis() - lastPrint >= uint32_t(100))
     { 
