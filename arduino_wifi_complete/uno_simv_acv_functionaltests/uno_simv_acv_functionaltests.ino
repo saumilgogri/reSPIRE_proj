@@ -166,45 +166,19 @@ void writeString(String stringData){
 // =========================================== 
 void loop()
 {
-  //acv_mode();
-  /* fetchPotValues();
-  Serial.println(IE_ratio);
-  Serial.println(BPM);
-  Serial.println(TidVol);
-  delay(1000); */
 
-  //Serial.println(Serial.available());
-  //while(Serial.available()){rawMsg.concat(char(Serial.read()));}delay(10);
-  //String data = "page0.t_mode.txt=\"Incoming Call\"";writeString(data);
-  //if(!Serial.available()){                    
-  //  if(rawMsg.length()){
-   //   pageNum = rawMsg[rawMsg.length()-4];                //Read Nextion: get the page number.
-  //    String data = "page0.t_mode.txt=\""+pageNum+"\"";writeString(data);
-  //  msg = rawMsg.substring(1, rawMsg.length()-4);           //Read Nextion: get the Raw Msges from Nextion.
-    
-  //  }
-  //}
-  //String var = String(Serial.read());
-  //t_mode.setText(var.c_str());
-  //while(true)
-  //{
-    // Run ventilator
-    
-    //IE_ratio = map(analogRead(potpinIE_ratio), 0, 1023, 1.00, 4.00);    
-    //TidVol = map(analogRead(potpinTidVol), 0, 1023, 40.00, 90.00);     
-    //BPM = map(analogRead(potpinBPM), 0, 1023, 8.00, 30.00); 
-/*     int Value = map(analogRead(1),0,1024,0,255);  //Read the pot value ann map it to 0.255 (max value of waveform=255)
-    Serial.println(Value);
-    String Tosend = "add ";                                       //We send the string "add "
-    Tosend += 3;                                                  //send the id of the block you want to add the value to
-    Tosend += ",";  
-    Tosend += ch;                                                  //Channel of taht id, in this case channel 0 of the waveform
-    Tosend += ",";
-    Tosend += Value;                                              //Send the value and 3 full bytes
-    Serial.print(Tosend);
-    Serial.write(0xff);
-    Serial.write(0xff);
-    Serial.write(0xff); */
+
+BPM = 20;
+IE_ratio = 2;
+TidVol = 15;
+maskPressure = 2;
+volFlow = 4;
+totVolume = 800;
+
+transmit();
+delay(3000);
+
+
 /*     fetchPotValues();
     send_to_screen_values();
     delay(500);
@@ -215,7 +189,7 @@ void loop()
       simv_mode();    
     }
     Serial.println("I am not lost!!"); */
-    acv_mode();
+    //acv_mode();
     //Serial.println(set_mode);
     //Serial.println(start);
   //if(set_mode == "ACV" && start == true)
@@ -240,15 +214,7 @@ void loop()
     simv_mode();
     //myFile.close();
   } */
-  //while(set_mode == simvLabel) simv_mode();
-//  get b0.val;
-  //while(set_mode == acvLabel) acv_mode();
-
-//maskPressure = pressureFromAnalog(pinMask,1000);
-//diffPressure = pressureFromAnalog(pinDiff,1000); 
-
-
-//nexLoop(nex_listen_list);
+  
 }
 // ***************** END RUN RESPIRATOR  *******************
 
