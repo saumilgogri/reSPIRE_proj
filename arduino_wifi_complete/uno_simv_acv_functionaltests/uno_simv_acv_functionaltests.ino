@@ -215,7 +215,7 @@ void loop()
       simv_mode();    
     }
     Serial.println("I am not lost!!"); */
-    simv_mode();
+    acv_mode();
     //Serial.println(set_mode);
     //Serial.println(start);
   //if(set_mode == "ACV" && start == true)
@@ -254,57 +254,8 @@ void loop()
 
 // ============ LAYER 1 FUNCTIONS ===============
 // =================================================
-//                 ACV MODE Function
+//                 SIMV MODE Function
 // =================================================
-void acv_mode()
-{
-  uint32_t cycleEndTime;
-  bool firstRun = true;
-  
-  while(true)
-  {   
-      // Fetch all potentiometer values
-      fetchPotValues();
-      
-      // Initiate first run
-      if(firstRun)
-      {
-        inspiration(TidVol);
-        delay(15);
-        cycleEndTime = expiration(TidVol, IE_ratio);
-        firstRun = false;
-      }
-      // ========= Identify trigger and initiate the cycle =============
-      if(millis() - cycleEndTime >= (uint32_t)separation || maskPressure < -1)
-      {
-        //myFile = SD.open("example.txt", FILE_WRITE);
-        inspiration(TidVol);
-        delay(15);
-        cycleEndTime = expiration(TidVol, IE_ratio);
-        //myFile.close(); 
-      }
-      sanityCheckBuzzer();
-      
-      // ============ Update pressure values =========
-      maskPressure = pressureFromAnalog(pinMask,1000);
-      diffPressure = pressureFromAnalog(pinDiff,1000); 
-      //send_to_screen_graph();
-      //nexLoop(nex_listen_list); 
-      
-      //Serial.println(maskPressure);
-      //print_to_screen();
-      //nexLoop(nex_listen_list);
-      //computePrintVolFlow();
-  }
-  return;
-}
-
-
-
-// ===========================================
-//            SIMV MODE Function
-// ===========================================
-
 void simv_mode()
 {
   uint32_t cycleEndTime;
@@ -338,51 +289,46 @@ void simv_mode()
   return;
 }
 
-// ============ LAYER 2 FUNCTIONS ================
 
-// =======================
-// SIMV Logic Function
-// =======================
 
-uint32_t simv_logic(float maskPressure, float TidVol, float IE_ratio)
+// ===========================================
+//            ACV MODE Function
+// ===========================================
+
+void acv_mode()
 {
-    uint32_t cycleEndTime;
-    maskPressure = int(floor(maskPressure));
-    switch(int(maskPressure)){
-        case -6:
-        case -5:
-        case -4:
-            TidVol = TidVol*0.25;
-            inspiration(TidVol);
-            delay(15);
-            cycleEndTime = expiration(TidVol, IE_ratio);
-            break;
-        case -3:
-            TidVol = TidVol*0.50;
-            inspiration(TidVol);
-            delay(15);
-            cycleEndTime = expiration(TidVol, IE_ratio);
-            break;
-        case -2:
-            TidVol = TidVol*0.75;
-            inspiration(TidVol);
-            delay(15);
-            cycleEndTime = expiration(TidVol, IE_ratio);
-            break;
-        case -1:
-            TidVol = TidVol*0.75;
-            inspiration(TidVol);
-            delay(15);
-            cycleEndTime = expiration(TidVol, IE_ratio);
-            break;
-        default:
-            inspiration(TidVol);
-            delay(15);
-            cycleEndTime = expiration(TidVol, IE_ratio);
-            break;
-    }
-    return cycleEndTime;
+  uint32_t cycleEndTime;
+  bool firstRun = true;
+
+  while(true)
+  {
+      // Fetch all potentiometer values
+      fetchPotValues();
+
+      // ==== Initiate the cycle =====
+      if(firstRun)
+      {
+        inspiration(TidVol);
+        delay(15);
+        cycleEndTime = expiration(TidVol, IE_ratio);
+        firstRun = false;
+      }
+      // ========= Identify trigger and initiate the cycle =============
+      if(millis() - cycleEndTime >= (uint32_t)separation || maskPressure < -1)
+      {
+        inspiration(TidVol);
+        delay(15);
+        cycleEndTime = expiration(TidVol, IE_ratio);
+      }
+
+      maskPressure = pressureFromAnalog(pinMask,1000);
+      diffPressure = pressureFromAnalog(pinDiff,1000); 
+      Serial.println(IE_ratio);
+  }
+  return;
 }
+
+// ============ LAYER 2 FUNCTIONS ================
 
 // =======================
 // Average Pressure Function
@@ -417,7 +363,7 @@ void inspiration(float TidVol)
     maskPressure = pressureFromAnalog(pinMask, count);
     diffPressure = pressureFromAnalog(pinDiff, count);  
     computePrintVolFlow();  
-    Serial.println(totVolume);
+    Serial.println(IE_ratio);
     //String data = set_mode + "," + String(maskPressure) + "," + String(volFlow) + "," + String(totVolume) + ";";
     //Serial.println(set_mode + "," + String(maskPressure) + "," + String(volFlow) + "," + String(totVolume) + ";");
     //myFile.println(data);
@@ -448,7 +394,7 @@ uint32_t expiration(float TidVol, float IE_ratio)
     //String data = set_mode + "," + String(maskPressure) + "," + String(volFlow) + "," + String(totVolume) + ";";
     //Serial.println(set_mode + "," + String(maskPressure) + "," + String(volFlow) + "," + String(totVolume) + ";");
     //myFile.println(data);
-    Serial.println(totVolume);
+    Serial.println(IE_ratio);
     //send_to_screen_values();
     //nexLoop(nex_listen_list); 
     count++;
