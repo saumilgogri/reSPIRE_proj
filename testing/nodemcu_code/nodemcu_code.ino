@@ -34,8 +34,8 @@ time_t start_time;
 //char receivedChars[numChars];   // an array to store the received data
 
 // Replace with your network credentials
-const char* ssid     = "NETGEAR28";
-const char* password = "bluesky089";  
+const char* ssid     = "1.21 Jiggawatts!";
+const char* password = "itburnswhenIP";  
 
 // REPLACE with your Domain name and URL path or IP address with path
 const char* serverName = "http://respire.000webhostapp.com/post-esp-data.php";
@@ -79,17 +79,10 @@ void loop() {
   boolean messageReady = false;
   doc.printTo(SUART);
   start_time = millis();
-  while(messageReady == false) { // blocking but that's ok
-      message = SUART.readString();
-      Serial.println("message was received");
-      if(message == ""){
-        return;
-      }
-      messageReady = true;
-    }
+  message = SUART.readString();
   send_data(message);
   jb.clear();
-  delay(1000);
+  delay(3000);
   }
   
 

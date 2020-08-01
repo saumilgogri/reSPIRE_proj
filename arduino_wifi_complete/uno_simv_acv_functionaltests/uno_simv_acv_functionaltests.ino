@@ -167,7 +167,7 @@ void writeString(String stringData){
 void loop()
 {
 
-
+//simv_mode();
 BPM = 20;
 IE_ratio = 2;
 TidVol = 15;
