@@ -167,28 +167,20 @@ void writeString(String stringData){
 void loop()
 {
 
-//simv_mode();
-BPM = 20;
-IE_ratio = 2;
-TidVol = 15;
-maskPressure = 2;
-volFlow = 4;
-totVolume = 800;
+fetchPotValues();
+send_to_screen_values();
+delay(500);
+nexLoop(nex_listen_list);
+if(set_mode == "SIMV" && start == 1)
+{
+  simv_mode();    
+}
+if(set_mode == "ACV" && start == 1)
+{
+  acv_mode();    
+}
 
-transmit();
-delay(3000);
 
-
-/*     fetchPotValues();
-    send_to_screen_values();
-    delay(500);
-    nexLoop(nex_listen_list);
-    if(set_mode == "ACV" && start == 1)
-    {
-      Serial.println("I am here");
-      simv_mode();    
-    }
-    Serial.println("I am not lost!!"); */
     //acv_mode();
     //Serial.println(set_mode);
     //Serial.println(start);
@@ -227,7 +219,7 @@ void simv_mode()
   uint32_t cycleEndTime;
   bool firstRun = true;
 
-  while(true)
+  while(start == 1)
   {
       // Fetch all potentiometer values
       fetchPotValues();
@@ -250,7 +242,9 @@ void simv_mode()
 
       maskPressure = pressureFromAnalog(pinMask,1000);
       diffPressure = pressureFromAnalog(pinDiff,1000); 
-      Serial.println(totVolume);
+      send_to_screen_values();
+      send_to_screen_graph();
+      nexLoop(nex_listen_list); 
   }
   return;
 }
@@ -266,7 +260,7 @@ void acv_mode()
   uint32_t cycleEndTime;
   bool firstRun = true;
 
-  while(true)
+  while(start == 1)
   {
       // Fetch all potentiometer values
       fetchPotValues();
@@ -289,7 +283,9 @@ void acv_mode()
 
       maskPressure = pressureFromAnalog(pinMask,1000);
       diffPressure = pressureFromAnalog(pinDiff,1000); 
-      Serial.println(IE_ratio);
+      send_to_screen_values();
+      send_to_screen_graph();
+      nexLoop(nex_listen_list); 
   }
   return;
 }
@@ -336,6 +332,7 @@ void inspiration(float TidVol)
     //nexLoop(nex_listen_list);
     //send_to_screen_values();
     //nexLoop(nex_listen_list); 
+    //send_to_screen_graph();
     count++;
   }
 }
@@ -362,7 +359,8 @@ uint32_t expiration(float TidVol, float IE_ratio)
     //myFile.println(data);
     Serial.println(IE_ratio);
     //send_to_screen_values();
-    //nexLoop(nex_listen_list); 
+    //nexLoop(nex_listen_list);
+    //send_to_screen_graph();
     count++;
   }  
   return millis();
